@@ -42,8 +42,10 @@ tr.hit td{background:var(--hit)}
 td.r{background:var(--res);text-align:right;font-weight:bold}
 .big{font-size:20px}
 .note{font-size:13px;color:var(--sub)}
-.angRead{font-size:12px;color:var(--sub);padding:0 6px 3px;white-space:nowrap;min-height:15px}
-.angRead.bad{color:var(--warn)}
+.ang3{display:flex;align-items:center;gap:1px;padding-right:4px}
+.ang3 input{flex:none;padding:4px 2px;text-align:right;border-bottom:1px solid var(--line)}
+.ang3 input[data-p="d"]{width:66px}.ang3 input[data-p="m"]{width:34px}.ang3 input[data-p="s"]{width:46px}
+.ang3 span{color:var(--sub);font-size:15px;margin-right:3px}
 .warn{color:var(--warn);font-size:13px}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-variant-numeric:tabular-nums}
 .kv b{text-align:right}
@@ -238,13 +240,6 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
     <p class="note">標高は器械点の標高を使います（空欄なら 0 m）。縮尺係数・ジオイド高の初期値は現場付近の公共基準点の成果表の値です。</p>
   </div>
   <div class="card">
-    <h2>角度の入力</h2>
-    <div class="grid">
-      <div><label>数を1つだけ入れたとき</label><select id="stAng"><option value="dec">10進数の度（123.7583）</option><option value="packed">度.分秒（123.4530＝123°45′30″）</option></select></div>
-    </div>
-    <p class="note">度分秒は「123 45 30」「123-45-30」「123.45.30」のように区切ると、どちらの設定でも 度・分・秒 として読みます。結果の角度は 度分秒 と 10進数 の両方を出します。</p>
-  </div>
-  <div class="card">
     <h2>出典</h2>
     <p class="note">公共基準点：横浜市公共基準点（二次網）成果表 398ブロック（基準点網図・点の記.pdf）。<br>境界点 S1〜S6：査定図.pdf 座標リスト（表記「世界測地系・任意座標」なので、公共座標として使う前に確認が必要）。</p>
   </div>
@@ -297,16 +292,40 @@ function parseAng(s){
   }
   return neg ? -d : d;
 }
-// 角度の欄の下に「どう読んだか」を出す
-function angRead(inp){
-  let el = inp.nextElementSibling;
-  if(!el || !el.classList.contains("angRead")){ el=document.createElement("div"); el.className="angRead"; inp.after(el); }
-  const v = inp.value.trim(), a = parseAng(v);
-  el.classList.toggle("bad", v!=="" && a==null);
-  el.textContent = v==="" ? "" : a==null ? "読めません" : `＝${dmsOnly(a, true)}`;
+// 角度の欄は 度・分・秒 の3つの枠。保存は「度 分 秒」の文字（parseAng で読める）
+function angSplit(v){
+  v=z2h(v); if(v==="") return ["","",""];
+  if(/^\d+ +\d+ +[\d.]+$/.test(v)) return v.split(/ +/);
+  if(/^[\d.]+°$/.test(v)) return [v.slice(0,-1),"",""];   // 10進数の度のまま
+  const a=parseAng(v); if(a==null) return [v,"",""];
+  let t=Math.round(Math.abs(a)*36000)/10;
+  const D=Math.floor(t/3600); t-=D*3600; const M=Math.floor(t/60), Sx=+(t-M*60).toFixed(1);
+  return [String(D), String(M), String(Sx)];
 }
-function angReadAll(){ document.querySelectorAll('input[data-c="ha"],input[data-c="za"]').forEach(angRead); }
-document.addEventListener("input", e=>{ if(e.target.matches?.('input[data-c="ha"],input[data-c="za"]')) angRead(e.target); });
+function angCell(k, c, v){
+  const [d,m,x]=angSplit(v??"");
+  const f=(p,val,ph)=>`<input data-k="${k}" data-c="${c}" data-p="${p}" value="${esc(val)}" inputmode="decimal" placeholder="${ph}">`;
+  return `<div class="ang3">${f("d",d,"度")}<span>°</span>${f("m",m,"分")}<span>′</span>${f("s",x,"秒")}<span>″</span></div>`;
+}
+// 枠の値 → 保存する文字。度の枠に「123 45 30」などを入れたときは、枠を離れたとき（fix）に3つに分け直す
+function angVal(t, fix){
+  const box=[...t.closest(".ang3").querySelectorAll("input")];
+  const v0=z2h(t.value);
+  if(fix && t.dataset.p==="d" && /[\s\-°度′'分″"秒:]|\..*\./.test(v0) && parseAng(v0)!=null){
+    const sp=angSplit(v0); box.forEach((e,i)=>e.value=sp[i]);
+  }
+  const [d,m,x]=box.map(e=>z2h(e.value));
+  if(d.includes(".") && !m && !x) return d+"°";   // 度の枠だけに 123.7583 → 10進数の度
+  return d||m||x ? `${d||0} ${m||0} ${x||0}` : "";
+}
+// 分は2けた入れたら秒へ進む（度の枠は 10進数も入るので進めない）
+document.addEventListener("input", e=>{
+  const t=e.target, p=t.dataset?.p; if(p!=="m" || e.inputType?.startsWith("delete")) return;
+  const next=t.parentElement.querySelector('input[data-p="s"]');
+  const v=z2h(t.value); if(!/^\d{2,}$/.test(v)) return;
+  if(v.length>2){ t.value=v.slice(0,2); next.value=v.slice(2); next.dispatchEvent(new Event("input",{bubbles:true})); }   // 3けた目からは秒へ
+  next.focus(); if(v.length===2) next.select();
+});
 function norm360(d){ d %= 360; return d<0 ? d+360 : d; }
 // 結果の角度は 度分秒 と 10進数 を並べて出す
 function dms(d, signed){
@@ -426,26 +445,26 @@ function addPts(list, note){
 
 /* ---------- 器械点を求める ---------- */
 // 既知点への 水平角・距離 から、器械点の座標と水平角 0° の向きを最小二乗で求める（縮尺は設定の補正で固定）
-const fsCols = [["n","測点名",100],["kx","既知 X",115],["ky","既知 Y",115],["kh","既知 標高",85],["ha","水平角",110],["za","鉛直角(天頂角)",110],["d","距離",90],["t","目標高",70]];
+const fsCols = [["n","測点名",100],["kx","既知 X",115],["ky","既知 Y",115],["kh","既知 標高",85],["ha","水平角",170],["za","鉛直角(天頂角)",170],["d","距離",90],["t","目標高",70]];
 function fsEnsure(){ while(S.fs.rows.length<6) S.fs.rows.push({}); }
 ["fsN","fsI","fsDist"].forEach(id=>["input","change"].forEach(ev=>$(id).addEventListener(ev,()=>{ S.fs[id]=$(id).value; save(); fsCalc(); })));
 function fsRender(){
   fsEnsure();
   ["fsN","fsI","fsDist"].forEach(id=>{ if(S.fs[id]!=null) $(id).value=S.fs[id]; });
   $("fsTable").innerHTML = `<tr><th>#</th><th>既知</th>${fsCols.map(c=>`<th>${c[1]}</th>`).join("")}<th>求めた X</th><th>求めた Y</th><th>求めた 標高</th><th>ずれ 水平(mm)</th><th>ずれ 高さ(mm)</th></tr>` +
-    S.fs.rows.map((r,k)=>`<tr><td>${k+1}</td><td style="text-align:center"><input type="checkbox" class="chk" data-k="${k}" data-c="use"></td>${fsCols.map(c=>`<td class="${c[0]==="n"?"":"n"}"><input data-k="${k}" data-c="${c[0]}" value="${esc(r[c[0]]??"")}" ${c[0]==="n"?'list="ptlist"':'inputmode="decimal"'} style="width:${c[2]}px"></td>`).join("")}${["X","Y","H","E","V"].map(c=>`<td class="${"XYH".includes(c)?"r":"n"}" id="fs${c}${k}"></td>`).join("")}</tr>`).join("");
-  fsCalc(); angReadAll();
+    S.fs.rows.map((r,k)=>`<tr><td>${k+1}</td><td style="text-align:center"><input type="checkbox" class="chk" data-k="${k}" data-c="use"></td>${fsCols.map(c=>`<td class="${c[0]==="n"?"":"n"}">${c[0]==="ha"||c[0]==="za"?angCell(k,c[0],r[c[0]]):`<input data-k="${k}" data-c="${c[0]}" value="${esc(r[c[0]]??"")}" ${c[0]==="n"?'list="ptlist"':'inputmode="decimal"'} style="width:${c[2]}px">`}</td>`).join("")}${["X","Y","H","E","V"].map(c=>`<td class="${"XYH".includes(c)?"r":"n"}" id="fs${c}${k}"></td>`).join("")}</tr>`).join("");
+  fsCalc();
 }
 $("fsTable").addEventListener("input", e=>{
   const t=e.target; if(t.dataset.k==null || t.dataset.c==="use") return; const r=S.fs.rows[t.dataset.k];
-  r[t.dataset.c]=t.value;
+  r[t.dataset.c]=t.dataset.p ? angVal(t) : t.value;
   if(t.dataset.c==="n"){ const p=findPt(t.value); if(p && p.x!=null){ r.kx=String(p.x); r.ky=String(p.y); r.kh=p.h==null?"":String(p.h); delete r.use;
     const tr=t.closest("tr"); ["kx","ky","kh"].forEach(c=>tr.querySelector(`[data-c="${c}"]`).value=r[c]); } }
   save(); fsCalc();
 });
 $("fsTable").addEventListener("change", e=>{
   const t=e.target; if(t.dataset.k==null) return; const r=S.fs.rows[t.dataset.k];
-  if(t.dataset.c==="use") r.use=t.checked; else if(t.dataset.c!=="n"){ t.value=z2h(t.value); r[t.dataset.c]=t.value; }
+  if(t.dataset.c==="use") r.use=t.checked; else if(t.dataset.c!=="n"){ t.value=z2h(t.value); r[t.dataset.c]=t.dataset.p ? angVal(t, true) : t.value; }
   save(); fsCalc();
 });
 // 観測1行 → 水平角・水平距離（現地）・視準軸から目標までの高低差
@@ -607,11 +626,11 @@ function trRender(){
   trEnsure();
   ["trA","trB","trMode","trDist"].forEach(id=>{ if(S.tr[id]!=null) $(id).value=S.tr[id]; });
   $("trTable").innerHTML = `<tr><th>#</th>${trCols.map(c=>`<th>${c[1]}</th>`).join("")}<th>器械点</th><th>X</th><th>Y</th><th>標高</th><th>方向角</th><th>水平距離(平面)</th></tr>` +
-    S.tr.rows.map((r,k)=>`<tr><td>${k+1}</td>${trCols.map(c=>`<td class="${c[0]==="n"?"":"n"}"><input data-k="${k}" data-c="${c[0]}" value="${esc(r[c[0]]??"")}" ${c[0]==="n"?"":'inputmode="decimal"'} style="width:${c[0]==="n"?110:c[0]==="ha"||c[0]==="za"?110:86}px"></td>`).join("")}<td id="trS${k}"></td><td class="r" id="trX${k}"></td><td class="r" id="trY${k}"></td><td class="r" id="trH${k}"></td><td class="n" id="trAz${k}"></td><td class="n" id="trSp${k}"></td></tr>`).join("");
-  trCalc(); angReadAll();
+    S.tr.rows.map((r,k)=>`<tr><td>${k+1}</td>${trCols.map(c=>`<td class="${c[0]==="n"?"":"n"}">${c[0]==="ha"||c[0]==="za"?angCell(k,c[0],r[c[0]]):`<input data-k="${k}" data-c="${c[0]}" value="${esc(r[c[0]]??"")}" ${c[0]==="n"?"":'inputmode="decimal"'} style="width:${c[0]==="n"?110:86}px">`}</td>`).join("")}<td id="trS${k}"></td><td class="r" id="trX${k}"></td><td class="r" id="trY${k}"></td><td class="r" id="trH${k}"></td><td class="n" id="trAz${k}"></td><td class="n" id="trSp${k}"></td></tr>`).join("");
+  trCalc();
 }
-$("trTable").addEventListener("input", e=>{ const t=e.target; if(t.dataset.k==null) return; S.tr.rows[t.dataset.k][t.dataset.c]=t.value; save(); trCalc(); });
-$("trTable").addEventListener("change", e=>{ const t=e.target; if(t.dataset.c && t.dataset.c!=="n"){ t.value=z2h(t.value); S.tr.rows[t.dataset.k][t.dataset.c]=t.value; save(); } });
+$("trTable").addEventListener("input", e=>{ const t=e.target; if(t.dataset.k==null) return; S.tr.rows[t.dataset.k][t.dataset.c]=t.dataset.p ? angVal(t) : t.value; save(); trCalc(); });
+$("trTable").addEventListener("change", e=>{ const t=e.target; if(t.dataset.c && t.dataset.c!=="n"){ t.value=z2h(t.value); S.tr.rows[t.dataset.k][t.dataset.c]=t.dataset.p ? angVal(t, true) : t.value; save(); trCalc(); } });
 let trOut = [];
 function trCalc(){
   trOut = [];
@@ -783,11 +802,10 @@ document.getElementById("pts").addEventListener("paste", e=>{
 });
 
 /* ---------- 設定 ---------- */
-function stRender(){ $("stOn").value=String(S.set.on); $("stAng").value=S.set.ang==="packed"?"packed":"dec"; $("stM").value=S.set.m; $("stN").value=S.set.n; stInfo(); }
+function stRender(){ $("stOn").value=String(S.set.on); $("stM").value=S.set.m; $("stN").value=S.set.n; stInfo(); }
 function stInfo(){ const h=num($("soOH").value)??0; const k=kGround(h); $("stInfo").innerHTML=`今の倍率（器械点標高 ${f3(h)} m）：現地距離 ＝ 平面距離 × <b>${k.toFixed(7)}</b>（100 m で ${((k-1)*100000).toFixed(1)} mm）`; }
 ["stOn","stM","stN"].forEach(id=>$(id).addEventListener("input",()=>{ S.set={...S.set, on:+$("stOn").value, m:num($("stM").value)??1, n:num($("stN").value)??0}; save(); stInfo(); }));
-function angHelp(){ document.querySelectorAll(".angHelp").forEach(e=>e.textContent = `角度は 度分秒「123 45 30」「123-45-30」「123.45.30」か、${S.set.ang==="packed"?"度.分秒「123.4530」（＝123°45′30″）":"10進数「123.7583」"}で入力。`); }
-$("stAng").onchange = ()=>{ S.set.ang=$("stAng").value; save(); angHelp(); angReadAll(); };
+function angHelp(){ document.querySelectorAll(".angHelp").forEach(e=>e.textContent = "角度は 度・分・秒 の枠に分けて入れます（秒は小数も可。分は2けた入れると秒へ進みます）。10進数の度で入れるときは、度の枠に「123.7583」と入れ、分・秒は空のまま。"); }
 $("stOn").onchange = ()=>{ S.set.on=+$("stOn").value; save(); stInfo(); };
 
 /* ---------- 起動 ---------- */
