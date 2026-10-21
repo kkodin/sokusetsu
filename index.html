@@ -62,6 +62,10 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
 #pick .it.on{background:var(--hit)}
 #pick .it.cur b::after{content:"（今の値）";font-weight:normal;font-size:12px;color:var(--sub)}
 .rowDel{border:0;background:none;color:var(--sub);font-size:16px;padding:0 0 0 4px;cursor:pointer}
+input.gsel, select.gsel{background:rgba(31,111,209,.16)!important;outline:1px solid rgba(31,111,209,.5)}
+/* 表を横に動かしても # の列は左に残す */
+.scroll table tr > :first-child{position:sticky;left:0;z-index:1;background:var(--card)}
+.scroll table tr > th:first-child{background:var(--head);z-index:2}
 .plan{width:100%;max-width:760px;height:auto;display:block;margin-top:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
 .plan text{font-size:13px;fill:var(--ink);paint-order:stroke;stroke:var(--bg);stroke-width:3px}
 .plan .sub{fill:var(--sub);font-size:12px}
@@ -387,14 +391,7 @@ function angVal(t, fix){
   if(d.includes(".") && !m && !x) return d+"°";   // 度の枠だけに 123.7583 → 10進数の度
   return d||m||x ? `${d||0} ${m||0} ${x||0}` : "";
 }
-// 分は2けた入れたら秒へ進む（度の枠は 10進数も入るので進めない）
-document.addEventListener("input", e=>{
-  const t=e.target, p=t.dataset?.p; if(p!=="m" || e.inputType?.startsWith("delete")) return;
-  const next=t.parentElement.querySelector('input[data-p="s"]');
-  const v=z2h(t.value); if(!/^\d{2,}$/.test(v)) return;
-  if(v.length>2){ t.value=v.slice(0,2); next.value=v.slice(2); next.dispatchEvent(new Event("input",{bubbles:true})); }   // 3けた目からは秒へ
-  next.focus(); if(v.length===2) next.select();
-});
+
 function norm360(d){ d %= 360; return d<0 ? d+360 : d; }
 // 結果の角度は 度分秒 と 10進数 を並べて出す
 function dms(d, signed){
@@ -566,13 +563,95 @@ pick.addEventListener("pointerdown", e=>{ pickTouch=true; if(e.pointerType==="mo
 pick.addEventListener("click", e=>{ const it=e.target.closest(".it[data-i]"); if(it) pickSet(+it.dataset.i); });
 addEventListener("scroll", e=>{ if(pickIn && e.target!==pick) pickHide(); }, true);
 
-/* ---------- 表の入力：Enter で次の欄へ ---------- */
+/* ---------- 表の入力：Excel のように ---------- */
+// Tab＝右・Shift+Tab＝左（ブラウザのまま）。Enter＝下（Tab で右へ進み始めた列へ戻る）・Shift+Enter＝上。最下行で Enter なら行を足す
+// マウスでなぞる・Shift+クリックで範囲を選ぶ → Delete でまとめて消す、Ctrl+C でコピー、Ctrl+V で Excel の表を貼り付け
+const GRID_ADD = {   // 行を足せる表：足したあと表を描き直す
+  fsTable: ()=>{ S.fs.rows.push({}); save(); fsRender(); },
+  csTable: ()=>{ S.cs.rows.push({}); save(); csRender(); },
+  trTable: ()=>{ S.tr.rows.push({}); save(); trRender(); },
+  invTable: ()=>{ S.inv.rows.push({}); save(); invRender(); },
+  chTable: ()=>{ chCur().rows.push({}); save(); chRender(); },
+  ptTable: ()=>{ S.pts.push({n:"",x:null,y:null,h:null,note:""}); save(); ptRender(); },
+  csTy: ()=>{ S.cs.types.push({n:""}); save(); csRender(); }
+};
+const gridCellsOf = tr => [...tr.querySelectorAll('input:not([type="checkbox"]), select')];
+const gridRows = tb => [...tb.querySelectorAll("tr")].filter(tr=>gridCellsOf(tr).length);
+function gridPos(el){
+  const tb=el.closest("table"); if(!tb || !el.closest("td")) return null;
+  const rows=gridRows(tb), r=rows.indexOf(el.closest("tr")); if(r<0) return null;
+  return {tb, rows, r, c:gridCellsOf(rows[r]).indexOf(el)};
+}
+function gridAt(tb, r, c){ const rows=gridRows(tb); return rows[r] ? gridCellsOf(rows[r])[c] : null; }
+function gridGo(el){ if(!el) return; pickHide(); el.focus(); el.select?.(); }
+let gridTabCol=null, gridSel=null;   // gridSel = {tb, r0, c0, r1, c1}
+function gridMark(){
+  document.querySelectorAll(".gsel").forEach(e=>e.classList.remove("gsel"));
+  if(!gridSel) return;
+  const {tb,r0,c0,r1,c1}=gridSel, rows=gridRows(tb);
+  for(let r=Math.min(r0,r1); r<=Math.max(r0,r1); r++) for(let c=Math.min(c0,c1); c<=Math.max(c0,c1); c++){ const e=rows[r] && gridCellsOf(rows[r])[c]; if(e) e.classList.add("gsel"); }
+}
+const gridMany = () => gridSel && (gridSel.r0!==gridSel.r1 || gridSel.c0!==gridSel.c1);
+function gridSet(el, v){
+  if(el.tagName==="SELECT"){ if([...el.options].some(o=>o.value===v)) el.value=v; else return; }
+  else el.value=v;
+  el.dispatchEvent(new Event("input",{bubbles:true})); el.dispatchEvent(new Event("change",{bubbles:true}));
+}
 document.addEventListener("keydown", e=>{
-  const t=e.target; if(e.key!=="Enter" || e.isComposing || t.tagName!=="INPUT" || t.type==="checkbox" || !t.closest("td")) return;
-  if(t===pickIn && pick.style.display!=="none" && pickAct>=0) return;   // 一覧で選んでいるときは選ぶ方
-  const all=[...t.closest("table").querySelectorAll('input:not([type="checkbox"]):not([disabled])')];
-  const nx=all[all.indexOf(t)+(e.shiftKey?-1:1)]; if(!nx) return;
-  e.preventDefault(); pickHide(); nx.focus(); nx.select();
+  const t=e.target, g=gridPos(t); if(!g || e.isComposing) return;
+  if(e.key==="Tab"){ if(gridTabCol==null) gridTabCol=g.c; gridSel=null; gridMark(); return; }   // 動きはブラウザのまま（度→分→秒→次の欄）
+  if(e.key==="Enter"){
+    if(t===pickIn && pick.style.display!=="none" && pickAct>=0) return;   // 一覧で選んでいるときは選ぶ方
+    e.preventDefault();
+    const c = gridTabCol ?? g.c; gridTabCol=null; gridSel=null; gridMark();
+    if(e.shiftKey){ if(g.r>0) gridGo(gridAt(g.tb, g.r-1, c) || gridAt(g.tb, g.r-1, 0)); return; }
+    if(g.r===g.rows.length-1){ const add=GRID_ADD[g.tb.id]; if(!add) return; t.dispatchEvent(new Event("change",{bubbles:true})); add(); }
+    const tb=$(g.tb.id) || g.tb; gridGo(gridAt(tb, g.r+1, c) || gridAt(tb, g.r+1, 0));
+    return;
+  }
+  if((e.key==="Delete" || e.key==="Backspace") && gridMany()){
+    e.preventDefault(); const {tb,r0,c0,r1,c1}=gridSel, cells=[];
+    for(let r=Math.min(r0,r1); r<=Math.max(r0,r1); r++) for(let c=Math.min(c0,c1); c<=Math.max(c0,c1); c++){ const el=gridAt(tb,r,c); if(el && el.tagName!=="SELECT") cells.push(el); }
+    cells.forEach(el=>gridSet(el, ""));
+    return;
+  }
+});
+// マウスで範囲を選ぶ
+let gridDrag=false;
+document.addEventListener("mousedown", e=>{
+  const g=gridPos(e.target);
+  if(!g){ if(!e.target.closest("#pick")){ gridSel=null; gridMark(); } return; }
+  gridTabCol=null;
+  if(e.shiftKey && gridSel && gridSel.tb===g.tb){ gridSel.r1=g.r; gridSel.c1=g.c; e.preventDefault(); }
+  else gridSel={tb:g.tb, r0:g.r, c0:g.c, r1:g.r, c1:g.c};
+  gridDrag=true; gridMark();
+});
+document.addEventListener("mouseover", e=>{
+  if(!gridDrag || !gridSel) return; const g=gridPos(e.target); if(!g || g.tb!==gridSel.tb) return;
+  if(g.r!==gridSel.r1 || g.c!==gridSel.c1){ gridSel.r1=g.r; gridSel.c1=g.c; gridMark(); if(gridMany()){ getSelection()?.removeAllRanges(); pickHide(); } }
+});
+document.addEventListener("mouseup", ()=>{ gridDrag=false; });
+// コピー：範囲を選んでいるときは タブ区切り（Excel にそのまま貼れる）
+document.addEventListener("copy", e=>{
+  if(!gridMany() || !gridPos(document.activeElement)) return;
+  const {tb,r0,c0,r1,c1}=gridSel, out=[];
+  for(let r=Math.min(r0,r1); r<=Math.max(r0,r1); r++){ const row=[]; for(let c=Math.min(c0,c1); c<=Math.max(c0,c1); c++){ const el=gridAt(tb,r,c); row.push(el ? (el.tagName==="SELECT" ? el.options[el.selectedIndex]?.text??"" : el.value) : ""); } out.push(row.join("\t")); }
+  e.clipboardData.setData("text/plain", out.join("\n")); e.preventDefault();
+});
+// 貼り付け：タブ・改行のある文字（Excel の範囲）は、今の欄（範囲を選んでいればその左上）から右・下へ割り振る。足りない行は足す
+document.addEventListener("paste", e=>{
+  const g=gridPos(e.target); if(!g) return;
+  const txt=(e.clipboardData||window.clipboardData).getData("text/plain"); if(!/[\t\n]/.test(txt.replace(/\r?\n$/,""))) return;
+  e.preventDefault();
+  const data=txt.replace(/\r/g,"").replace(/\n$/,"").split("\n").map(l=>l.split("\t"));
+  let r0=g.r, c0=g.c;
+  const inSel = gridMany() && gridSel.tb===g.tb && g.r>=Math.min(gridSel.r0,gridSel.r1) && g.r<=Math.max(gridSel.r0,gridSel.r1) && g.c>=Math.min(gridSel.c0,gridSel.c1) && g.c<=Math.max(gridSel.c0,gridSel.c1);
+  if(inSel){ r0=Math.min(gridSel.r0,gridSel.r1); c0=Math.min(gridSel.c0,gridSel.c1); }   // 選んだ範囲の中にいるときは範囲の左上から
+  const id=g.tb.id, add=GRID_ADD[id];
+  if(add){ let guard=0; while(gridRows($(id)).length < r0+data.length && guard++<500) add(); }
+  const tb=$(id) || g.tb;
+  data.forEach((row,i)=>row.forEach((v,j)=>{ const el=gridAt(tb, r0+i, c0+j); if(el) gridSet(el, v.trim()); }));
+  gridSel={tb, r0, c0, r1:r0+data.length-1, c1:c0+Math.max(...data.map(r=>r.length))-1}; gridMark();
 });
 
 /* ---------- 位置図 ---------- */
@@ -1273,7 +1352,7 @@ document.getElementById("pts").addEventListener("paste", e=>{
 function stRender(){ $("stOn").value=String(S.set.on); $("stM").value=S.set.m; $("stN").value=S.set.n; stInfo(); }
 function stInfo(){ const h=num($("soOH").value)??0; const k=kGround(h); $("stInfo").innerHTML=`今の倍率（器械点標高 ${f3(h)} m）：現地距離 ＝ 平面距離 × <b>${k.toFixed(7)}</b>（100 m で ${((k-1)*100000).toFixed(1)} mm）`; }
 ["stOn","stM","stN"].forEach(id=>$(id).addEventListener("input",()=>{ S.set={...S.set, on:+$("stOn").value, m:num($("stM").value)??1, n:num($("stN").value)??0}; save(); stInfo(); }));
-function angHelp(){ document.querySelectorAll(".angHelp").forEach(e=>e.textContent = "角度は 度・分・秒 の枠に分けて入れます（秒は小数も可。分は2けた入れると秒へ進みます）。10進数の度で入れるときは、度の枠に「123.7583」と入れ、分・秒は空のまま。"); }
+function angHelp(){ document.querySelectorAll(".angHelp").forEach(e=>e.textContent = "角度は 度・分・秒 の枠に分けて入れます（Tab で 度→分→秒→次の欄。秒は小数も可）。10進数の度で入れるときは、度の枠に「123.7583」と入れ、分・秒は空のまま。表は Excel のように Enter で下、範囲を選んで Delete・コピー・貼り付けができます。"); }
 $("stOn").onchange = ()=>{ S.set.on=+$("stOn").value; save(); stInfo(); };
 
 /* ---------- 起動 ---------- */
