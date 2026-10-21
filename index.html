@@ -42,6 +42,11 @@ tr.hit td{background:var(--hit)}
 td.r{background:var(--res);text-align:right;font-weight:bold}
 .big{font-size:20px}
 .note{font-size:13px;color:var(--sub)}
+.plan{width:100%;max-width:760px;height:auto;display:block;margin-top:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.plan text{font-size:13px;fill:var(--ink);paint-order:stroke;stroke:var(--bg);stroke-width:3px}
+.plan .sub{fill:var(--sub);font-size:11px}
+.planKey{font-size:12px;color:var(--sub);margin-top:4px}
+.planKey i{display:inline-block;width:10px;height:10px;margin:0 3px 0 10px;vertical-align:-1px;border-radius:50%}
 .ang3{display:flex;align-items:center;gap:1px;padding-right:4px}
 .ang3 input{flex:none;padding:4px 2px;text-align:right;border-bottom:1px solid var(--line)}
 .ang3 input[data-p="d"]{width:66px}.ang3 input[data-p="m"]{width:34px}.ang3 input[data-p="s"]{width:46px}
@@ -89,6 +94,7 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
   <div class="card">
     <h2>結果</h2>
     <div id="fsRes"></div>
+    <div id="fsPlot"></div>
     <div class="row" style="margin-top:8px">
       <button class="btn" id="fsSave">器械点と新点を座標一覧に追加</button>
       <select id="fsBack" style="max-width:200px"></select>
@@ -443,6 +449,44 @@ function addPts(list, note){
   list.forEach(p=>upsertPt({...p, note})); alert(`${list.length} 点を座標一覧に入れました。`); return true;
 }
 
+/* ---------- 位置図 ---------- */
+// pts: {x,y,n,k}  k = st（器械点）/ known（既知点）/ off（印を外した既知点）/ new（新点）
+const PLAN_COL = {st:"#d64545", known:"var(--acc)", off:"#9aa3b2", new:"#2e9b4a"};
+function planSvg(pts, st){
+  const W=640, H=420, pad=46;
+  const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
+  const xmin=Math.min(...xs), xmax=Math.max(...xs), ymin=Math.min(...ys), ymax=Math.max(...ys);
+  const span=Math.max(xmax-xmin, ymax-ymin, 1);
+  const k=Math.min((W-2*pad)/Math.max(ymax-ymin, span*0.2), (H-2*pad)/Math.max(xmax-xmin, span*0.2));
+  const cx=(ymin+ymax)/2, cy=(xmin+xmax)/2;
+  const P=p=>[W/2+(p.y-cx)*k, H/2-(p.x-cy)*k];
+  let g="";
+  // 視準線（器械点 → 各点）
+  pts.filter(p=>p!==st).forEach(p=>{
+    const [x1,y1]=P(st), [x2,y2]=P(p);
+    g+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${PLAN_COL[p.k]}" stroke-width="1.5" stroke-dasharray="6 4" opacity=".8"/>`;
+  });
+  // 点と名前（器械点以外は名前の下に器械点からの平面距離）
+  pts.forEach(p=>{
+    const [x,y]=P(p), c=PLAN_COL[p.k];
+    g+= p.k==="st" ? `<circle cx="${x}" cy="${y}" r="9" fill="none" stroke="${c}" stroke-width="2"/><circle cx="${x}" cy="${y}" r="4" fill="${c}"/>`
+      : p.k==="new" ? `<circle cx="${x}" cy="${y}" r="6" fill="${c}"/>`
+      : `<path d="M${x} ${y-8}L${x+7} ${y+5}L${x-7} ${y+5}Z" fill="${c}"/>`;
+    const right = x < W-90;
+    g+=`<text x="${x+(right?12:-12)}" y="${y-8}" text-anchor="${right?"start":"end"}" font-weight="${p.k==="st"?"bold":"normal"}">${esc(p.n||"")}</text>`;
+    if(p!==st) g+=`<text class="sub" x="${x+(right?12:-12)}" y="${y+7}" text-anchor="${right?"start":"end"}">${Math.hypot(p.x-st.x, p.y-st.y).toFixed(2)} m</text>`;
+  });
+  // 方位（北）と縮尺
+  g+=`<g transform="translate(${W-28},34)"><path d="M0 -18L7 6L0 1L-7 6Z" fill="var(--ink)"/><text x="0" y="22" text-anchor="middle" class="sub">北(X)</text></g>`;
+  const want=(W-2*pad)/(4*k), e=10**Math.floor(Math.log10(want)), L=[1,2,5,10].map(m=>m*e).filter(v=>v<=want).pop()||e;
+  g+=`<g transform="translate(16,${H-18})"><path d="M0 -5V0H${L*k}V-5" fill="none" stroke="var(--ink)" stroke-width="1.5"/><text x="${L*k/2}" y="-8" text-anchor="middle" class="sub">${L>=1?L:L.toFixed(2)} m</text></g>`;
+  return `<svg class="plan" viewBox="0 0 ${W} ${H}" role="img" aria-label="各点の位置図">${g}</svg>`;
+}
+function planKey(ks){
+  const name={st:"器械点", known:"既知点（計算に使用）", off:"既知点（印を外した点）", new:"新点"};
+  return `<div class="planKey">${ks.map(k=>`<i style="background:${PLAN_COL[k]}"></i>${name[k]}`).join("")}　点線＝器械点からの視準（名前の下の数字は器械点からの平面距離）</div>`;
+}
+
 /* ---------- 器械点を求める ---------- */
 // 既知点への 水平角・距離 から、器械点の座標と水平角 0° の向きを最小二乗で求める（縮尺は設定の補正で固定）
 const fsCols = [["n","測点名",100],["kx","既知 X",115],["ky","既知 Y",115],["kh","既知 標高",85],["ha","水平角",170],["za","鉛直角(天頂角)",170],["d","距離",90],["t","目標高",70]];
@@ -477,7 +521,7 @@ function fsObs(r, slope){
 }
 let fsOut = null;
 function fsCalc(){
-  fsOut = null;
+  fsOut = null; $("fsPlot").innerHTML = "";
   const slope=$("fsDist").value==="slope", i=num($("fsI").value)??0, name=$("fsN").value.trim()||"器械点";
   const all=[], noZa=[];
   S.fs.rows.forEach((r,k)=>{
@@ -525,6 +569,8 @@ function fsCalc(){
   });
   const st={n:name, x:+X0.toFixed(3), y:+Y0.toFixed(3), h:H0==null?null:+H0.toFixed(3)};
   fsOut={st, i, pts, news};
+  const plan=[{...st, k:"st"}, ...all.map(w=>{ const P=toXY(w.l||loc(w)); return w.p ? {n:w.n||`${w.k+1}行目`, x:w.p.x, y:w.p.y, k:w.use?"known":"off"} : {n:w.n||`${w.k+1}行目`, x:P.x, y:P.y, k:"new"}; })];
+  $("fsPlot").innerHTML = planSvg(plan, plan[0]) + planKey(["st","known",...(plan.some(p=>p.k==="off")?["off"]:[]),...(news.length||plan.some(p=>p.k==="new")?["new"]:[])]);
   const scale=Math.hypot(a,b)/q;
   res.innerHTML = `<div class="kv big"><span>${esc(name)} X</span><b>${f3(X0)}</b><span>${esc(name)} Y</span><b>${f3(Y0)}</b><span>${esc(name)} 標高</span><b>${H0!=null?f3(H0):"—（既知点の標高と天頂角が要ります）"}</b></div>
     <div class="note">使った既知点 ${known.length} 点　水平のずれ（二乗平均）${Math.sqrt(se/known.length).toFixed(0)} mm　水平角 0° の方向角 ${dms(norm360(deg(th)))}<br>距離の縮尺のずれ（参考）${((scale-1)*1e6).toFixed(0)} ppm　…数百 ppm 以上なら距離の入力か設定の補正を確認${hk.length>1?`<br>標高のばらつき ${((Math.max(...hk)-Math.min(...hk))*1000).toFixed(0)} mm（${hk.length} 点）`:""}</div>` +
