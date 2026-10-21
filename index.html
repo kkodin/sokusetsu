@@ -42,6 +42,8 @@ tr.hit td{background:var(--hit)}
 td.r{background:var(--res);text-align:right;font-weight:bold}
 .big{font-size:20px}
 .note{font-size:13px;color:var(--sub)}
+.angRead{font-size:12px;color:var(--sub);padding:0 6px 3px;white-space:nowrap;min-height:15px}
+.angRead.bad{color:var(--warn)}
 .warn{color:var(--warn);font-size:13px}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-variant-numeric:tabular-nums}
 .kv b{text-align:right}
@@ -104,6 +106,8 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
       <div><label>器械点 標高</label><input id="soOH" inputmode="decimal" class="num"></div>
       <div><label>器械高（任意）</label><input id="soI" inputmode="decimal" class="num" placeholder="0"></div>
       <div><label>目標高（ミラー高）</label><input id="soT" inputmode="decimal" class="num" placeholder="0"></div>
+    </div>
+    <div class="grid" style="margin-top:8px">
       <div><label>後視点</label><select id="soB" class="ptsel"></select></div>
       <div><label>後視点 X</label><input id="soBX" inputmode="decimal" class="num"></div>
       <div><label>後視点 Y</label><input id="soBY" inputmode="decimal" class="num"></div>
@@ -213,7 +217,7 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
       <button class="btn ghost" id="ptDelSel" disabled>選んだ点を削除（0）</button>
       <button class="btn ghost" id="ptCsvOut">CSV 書き出し</button>
       <label class="btn ghost" style="color:var(--acc)">CSV 読み込み<input type="file" id="ptCsvIn" accept=".csv,text/csv" hidden></label>
-      <button class="btn ghost" id="ptReset">最初の一覧に戻す</button>
+      <button class="btn ghost" id="ptReset">阿久和南の基準点を入れる</button>
       <input id="ptPaste" placeholder="ここに Excel の表を貼り付け" style="max-width:280px">
     </div>
     <div class="scroll"><table id="ptTable"></table></div>
@@ -249,7 +253,7 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
 
 <script>
 const DEFAULT_PTS = [{"n": "250", "x": -62702.521, "y": -29696.625, "h": 69.829, "note": "公共基準点"}, {"n": "Ⅱ398-1", "x": -62647.564, "y": -29878.33, "h": 65.22, "note": "公共基準点"}, {"n": "Ⅱ398-2", "x": -62630.315, "y": -30016.986, "h": 63.14, "note": "公共基準点"}, {"n": "Ⅱ398-3", "x": -62442.122, "y": -30000.984, "h": 61.36, "note": "公共基準点"}, {"n": "Ⅱ398-16", "x": -62407.194, "y": -30165.832, "h": 62.58, "note": "公共基準点"}, {"n": "Ⅱ398-17", "x": -62299.012, "y": -30150.444, "h": 64.46, "note": "公共基準点"}, {"n": "Ⅱ398-18", "x": -62236.014, "y": -30158.834, "h": 65.84, "note": "公共基準点"}, {"n": "Ⅱ398-5", "x": -62180.802, "y": -30153.363, "h": 66.1, "note": "公共基準点"}, {"n": "Ⅱ398-19", "x": -62022.582, "y": -30126.122, "h": 63.94, "note": "公共基準点"}, {"n": "251", "x": -61242.775, "y": -30183.721, "h": 77.971, "note": "公共基準点"}, {"n": "251-1", "x": -61359.844, "y": -30189.775, "h": 59.17, "note": "公共基準点"}, {"n": "Ⅱ398-7", "x": -61442.997, "y": -30270.17, "h": 59.07, "note": "公共基準点"}, {"n": "Ⅱ398-8", "x": -61525.59, "y": -30257.44, "h": 63.4, "note": "公共基準点"}, {"n": "Ⅱ398-9", "x": -61850.427, "y": -30170.649, "h": 58.97, "note": "公共基準点"}, {"n": "744-1", "x": -60956.559, "y": -28378.546, "h": 81.62, "note": "公共基準点"}, {"n": "Ⅱ398-38", "x": -61017.498, "y": -28367.836, "h": 82.0, "note": "公共基準点"}, {"n": "Ⅱ398-37", "x": -61070.625, "y": -28485.668, "h": 81.83, "note": "公共基準点"}, {"n": "Ⅱ398-36", "x": -61057.938, "y": -28614.962, "h": 79.14, "note": "公共基準点"}, {"n": "Ⅱ398-35", "x": -61068.978, "y": -28667.072, "h": 78.01, "note": "公共基準点"}, {"n": "Ⅱ398-34", "x": -61092.383, "y": -28715.346, "h": 76.63, "note": "公共基準点"}, {"n": "Ⅱ398-33", "x": -61092.027, "y": -28791.445, "h": 75.75, "note": "公共基準点"}, {"n": "Ⅱ398-32", "x": -61166.976, "y": -28871.7, "h": 77.07, "note": "公共基準点"}, {"n": "Ⅱ398-31", "x": -61235.773, "y": -28965.019, "h": 77.64, "note": "公共基準点"}, {"n": "Ⅱ398-30", "x": -61347.19, "y": -29013.682, "h": 80.19, "note": "公共基準点"}, {"n": "Ⅱ398-29", "x": -61441.672, "y": -29091.568, "h": 83.48, "note": "公共基準点"}, {"n": "Ⅱ398-28", "x": -61458.958, "y": -29207.831, "h": 82.71, "note": "公共基準点"}, {"n": "Ⅱ398-27", "x": -61525.056, "y": -29243.174, "h": 78.32, "note": "公共基準点"}, {"n": "Ⅱ398-26", "x": -61606.925, "y": -29248.268, "h": 70.78, "note": "公共基準点"}, {"n": "Ⅱ398-25", "x": -61727.094, "y": -29252.462, "h": 68.66, "note": "公共基準点"}, {"n": "Ⅱ398-10", "x": -61760.806, "y": -29302.2, "h": 67.23, "note": "公共基準点"}, {"n": "Ⅱ398-24", "x": -61732.15, "y": -29439.654, "h": 54.86, "note": "公共基準点"}, {"n": "Ⅱ398-12", "x": -61786.61, "y": -29720.777, "h": 45.19, "note": "公共基準点"}, {"n": "Ⅱ398-23", "x": -61810.522, "y": -29796.489, "h": 50.68, "note": "公共基準点"}, {"n": "Ⅱ398-22", "x": -61847.788, "y": -29860.251, "h": 57.09, "note": "公共基準点"}, {"n": "Ⅱ398-21", "x": -61845.674, "y": -29938.613, "h": 61.73, "note": "公共基準点"}, {"n": "Ⅱ398-20", "x": -62013.421, "y": -29943.678, "h": 65.97, "note": "公共基準点"}, {"n": "Ⅱ398-15", "x": -62029.111, "y": -30006.711, "h": 65.16, "note": "公共基準点"}, {"n": "S1", "x": -61822.597, "y": -29554.731, "h": null, "note": "境界点（査定図・任意座標表記）"}, {"n": "S2", "x": -61825.39, "y": -29554.067, "h": null, "note": "境界点（査定図・任意座標表記）"}, {"n": "S3", "x": -61816.343, "y": -29540.825, "h": null, "note": "境界点（査定図・任意座標表記）"}, {"n": "S4", "x": -61819.388, "y": -29540.79, "h": null, "note": "境界点（査定図・任意座標表記）"}, {"n": "S5", "x": -61814.695, "y": -29534.802, "h": null, "note": "境界点（査定図・任意座標表記）"}, {"n": "S6", "x": -61817.729, "y": -29535.016, "h": null, "note": "境界点（査定図・任意座標表記）"}];
-const DEFAULT_SET = {on:1, m:0.999911, n:37.1};
+const DEFAULT_SET = {on:1, m:0.999911, n:37.1, ang:"packed"};
 const R_EARTH = 6370000;
 const KEY = "sokusetsu_akuwaminami_v1";
 
@@ -257,9 +261,16 @@ const KEY = "sokusetsu_akuwaminami_v1";
 let S = load();
 S.fs ??= {rows:[]};
 S.ch ??= {step:"切土", steps:{}};
+S.set.ang ??= "packed";
+// 座標一覧は空から始める。前の版で勝手に入った基準点（手を付けていないもの）はここで外す
+if(!S.v2){
+  const same = p => DEFAULT_PTS.some(d=>d.n===p.n && d.x===p.x && d.y===p.y);
+  if(S.pts.length && S.pts.every(same)) S.pts = [];
+  S.v2 = 1; save();
+}
 function load(){
   try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && s.pts) return s; }catch(e){}
-  return {pts: DEFAULT_PTS.map(p=>({...p})), set:{...DEFAULT_SET}, so:{}, tr:{rows:[]}, inv:{rows:[]}};
+  return {v2:1, pts: [], set:{...DEFAULT_SET}, so:{}, tr:{rows:[]}, inv:{rows:[]}};
 }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
 
@@ -286,6 +297,16 @@ function parseAng(s){
   }
   return neg ? -d : d;
 }
+// 角度の欄の下に「どう読んだか」を出す
+function angRead(inp){
+  let el = inp.nextElementSibling;
+  if(!el || !el.classList.contains("angRead")){ el=document.createElement("div"); el.className="angRead"; inp.after(el); }
+  const v = inp.value.trim(), a = parseAng(v);
+  el.classList.toggle("bad", v!=="" && a==null);
+  el.textContent = v==="" ? "" : a==null ? "読めません" : `＝${dmsOnly(a, true)}`;
+}
+function angReadAll(){ document.querySelectorAll('input[data-c="ha"],input[data-c="za"]').forEach(angRead); }
+document.addEventListener("input", e=>{ if(e.target.matches?.('input[data-c="ha"],input[data-c="za"]')) angRead(e.target); });
 function norm360(d){ d %= 360; return d<0 ? d+360 : d; }
 // 結果の角度は 度分秒 と 10進数 を並べて出す
 function dms(d, signed){
@@ -413,7 +434,7 @@ function fsRender(){
   ["fsN","fsI","fsDist"].forEach(id=>{ if(S.fs[id]!=null) $(id).value=S.fs[id]; });
   $("fsTable").innerHTML = `<tr><th>#</th><th>既知</th>${fsCols.map(c=>`<th>${c[1]}</th>`).join("")}<th>求めた X</th><th>求めた Y</th><th>求めた 標高</th><th>ずれ 水平(mm)</th><th>ずれ 高さ(mm)</th></tr>` +
     S.fs.rows.map((r,k)=>`<tr><td>${k+1}</td><td style="text-align:center"><input type="checkbox" class="chk" data-k="${k}" data-c="use"></td>${fsCols.map(c=>`<td class="${c[0]==="n"?"":"n"}"><input data-k="${k}" data-c="${c[0]}" value="${esc(r[c[0]]??"")}" ${c[0]==="n"?'list="ptlist"':'inputmode="decimal"'} style="width:${c[2]}px"></td>`).join("")}${["X","Y","H","E","V"].map(c=>`<td class="${"XYH".includes(c)?"r":"n"}" id="fs${c}${k}"></td>`).join("")}</tr>`).join("");
-  fsCalc();
+  fsCalc(); angReadAll();
 }
 $("fsTable").addEventListener("input", e=>{
   const t=e.target; if(t.dataset.k==null || t.dataset.c==="use") return; const r=S.fs.rows[t.dataset.k];
@@ -587,7 +608,7 @@ function trRender(){
   ["trA","trB","trMode","trDist"].forEach(id=>{ if(S.tr[id]!=null) $(id).value=S.tr[id]; });
   $("trTable").innerHTML = `<tr><th>#</th>${trCols.map(c=>`<th>${c[1]}</th>`).join("")}<th>器械点</th><th>X</th><th>Y</th><th>標高</th><th>方向角</th><th>水平距離(平面)</th></tr>` +
     S.tr.rows.map((r,k)=>`<tr><td>${k+1}</td>${trCols.map(c=>`<td class="${c[0]==="n"?"":"n"}"><input data-k="${k}" data-c="${c[0]}" value="${esc(r[c[0]]??"")}" ${c[0]==="n"?"":'inputmode="decimal"'} style="width:${c[0]==="n"?110:c[0]==="ha"||c[0]==="za"?110:86}px"></td>`).join("")}<td id="trS${k}"></td><td class="r" id="trX${k}"></td><td class="r" id="trY${k}"></td><td class="r" id="trH${k}"></td><td class="n" id="trAz${k}"></td><td class="n" id="trSp${k}"></td></tr>`).join("");
-  trCalc();
+  trCalc(); angReadAll();
 }
 $("trTable").addEventListener("input", e=>{ const t=e.target; if(t.dataset.k==null) return; S.tr.rows[t.dataset.k][t.dataset.c]=t.value; save(); trCalc(); });
 $("trTable").addEventListener("change", e=>{ const t=e.target; if(t.dataset.c && t.dataset.c!=="n"){ t.value=z2h(t.value); S.tr.rows[t.dataset.k][t.dataset.c]=t.value; save(); } });
@@ -694,7 +715,11 @@ $("ptTable").addEventListener("change", e=>{
 });
 $("ptTable").addEventListener("click", e=>{ const k=e.target.dataset.del; if(k==null) return; if(confirm(`「${S.pts[k].n}」を消しますか？`)){ S.pts.splice(k,1); save(); fillSelects(); ptRender(); } });
 $("ptAdd").onclick = ()=>{ S.pts.push({n:"",x:null,y:null,h:null,note:""}); save(); ptRender(); };
-$("ptReset").onclick = ()=>{ if(confirm("座標一覧を最初の状態に戻しますか？（追加・修正した点は消えます）")){ S.pts=DEFAULT_PTS.map(p=>({...p})); save(); fillSelects(); ptRender(); } };
+$("ptReset").onclick = ()=>{
+  const add = DEFAULT_PTS.filter(d=>!findPt(d.n));
+  if(!add.length){ alert("阿久和南の基準点はもう全部入っています。"); return; }
+  if(confirm(`阿久和南の公共基準点・境界点 ${add.length} 点を座標一覧に入れますか？（同じ名前の点はそのまま）`)){ add.forEach(d=>S.pts.push({...d})); save(); fillSelects(); ptRender(); }
+};
 $("ptCsvOut").onclick = ()=>{
   const q = v => /[",\n]/.test(String(v??"")) ? `"${String(v).replace(/"/g,'""')}"` : (v??"");
   const csv = "﻿測点名,X,Y,高さ,備考\r\n" + S.pts.map(p=>[p.n,f3(p.x),f3(p.y),f3(p.h),p.note].map(q).join(",")).join("\r\n");
@@ -762,7 +787,7 @@ function stRender(){ $("stOn").value=String(S.set.on); $("stAng").value=S.set.an
 function stInfo(){ const h=num($("soOH").value)??0; const k=kGround(h); $("stInfo").innerHTML=`今の倍率（器械点標高 ${f3(h)} m）：現地距離 ＝ 平面距離 × <b>${k.toFixed(7)}</b>（100 m で ${((k-1)*100000).toFixed(1)} mm）`; }
 ["stOn","stM","stN"].forEach(id=>$(id).addEventListener("input",()=>{ S.set={...S.set, on:+$("stOn").value, m:num($("stM").value)??1, n:num($("stN").value)??0}; save(); stInfo(); }));
 function angHelp(){ document.querySelectorAll(".angHelp").forEach(e=>e.textContent = `角度は 度分秒「123 45 30」「123-45-30」「123.45.30」か、${S.set.ang==="packed"?"度.分秒「123.4530」（＝123°45′30″）":"10進数「123.7583」"}で入力。`); }
-$("stAng").onchange = ()=>{ S.set.ang=$("stAng").value; save(); angHelp(); };
+$("stAng").onchange = ()=>{ S.set.ang=$("stAng").value; save(); angHelp(); angReadAll(); };
 $("stOn").onchange = ()=>{ S.set.on=+$("stOn").value; save(); stInfo(); };
 
 /* ---------- 起動 ---------- */
