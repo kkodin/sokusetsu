@@ -479,7 +479,7 @@ let fsOut = null;
 function fsCalc(){
   fsOut = null;
   const slope=$("fsDist").value==="slope", i=num($("fsI").value)??0, name=$("fsN").value.trim()||"器械点";
-  const all=[];
+  const all=[], noZa=[];
   S.fs.rows.forEach((r,k)=>{
     const c=id=>$("fs"+id+k); ["X","Y","H","E","V"].forEach(id=>c(id).textContent="");
     const p={x:num(r.kx), y:num(r.ky), h:num(r.kh)}, cb=$("fsTable").querySelector(`input[data-c="use"][data-k="${k}"]`);
@@ -487,13 +487,15 @@ function fsCalc(){
     const use = isKnown && (r.use ?? true);
     cb.checked=use; cb.disabled=!isKnown;
     const o=fsObs(r, slope);
-    if(!o){ if(r.ha || r.d || r.za) c("X").innerHTML=`<span class="warn">${parseAng(r.ha)==null?"水平角":num(r.d)==null?"距離":"鉛直角"}が未入力</span>`; return; }
+    if(!o){ if(slope && parseAng(r.ha)!=null && num(r.d)!=null) noZa.push(k+1);
+      if(r.ha || r.d || r.za) c("X").innerHTML=`<span class="warn">${parseAng(r.ha)==null?"水平角":num(r.d)==null?"距離":"鉛直角"}が未入力</span>`; return; }
     all.push({k, n:String(r.n??"").trim(), o, p:isKnown?p:null, use});
   });
   const known=all.filter(w=>w.use), res=$("fsRes");
   $("fsBack").innerHTML = `<option value="">後視点を選ぶ</option>` + all.filter(w=>w.n).map(w=>`<option>${esc(w.n)}</option>`).join("");
   if(S.fs.back) $("fsBack").value=S.fs.back;
-  if(known.length<2){ res.innerHTML=`<span class="warn">既知点を 2 点以上（水平角と距離）入れてください。今 ${known.length} 点。</span>`; return; }
+  if(known.length<2){ res.innerHTML=`<span class="warn">既知点を 2 点以上（水平角と距離）入れてください。今 ${known.length} 点。</span>` +
+    (noZa.length ? `<br><span class="warn">${noZa.join("・")} 行目は 鉛直角（天頂角）が空欄なので使っていません。距離の種類が「斜距離」のときは天頂角が要ります。水平距離を測ったときは、上の「距離の種類」を「水平距離」にしてください。</span>` : ""); return; }
   // 現地の水平距離 → 平面距離（標高は既知点の平均で見積もる。1 m 違っても 0.2 ppm）
   const hs=known.filter(w=>w.p.h!=null).map(w=>w.p.h), kg=kGround(hs.length?avg(hs):0);
   const loc=w=>{ const s=w.o.hg/kg; return {u:s*Math.cos(rad(w.o.ha)), v:s*Math.sin(rad(w.o.ha))}; };
