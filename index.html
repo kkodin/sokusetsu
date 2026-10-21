@@ -150,7 +150,7 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
       <input id="ptPaste" placeholder="ここに Excel の表を貼り付け" style="max-width:280px">
     </div>
     <div class="scroll"><table id="ptTable"></table></div>
-    <p class="note">CSV・貼り付けとも「測点名・X・Y・高さ・備考」の列の順（見出しの行は飛ばします）。Excel でコピーした範囲は、表のどのマスか「ここに貼り付け」の欄に貼ると取り込みます。CSV は UTF-8・Shift_JIS（Excel の普通の CSV）どちらも読めます。<br>X＝北が＋、Y＝東が＋（測量の座標）。</p>
+    <p class="note">CSV・貼り付けとも、見出しの行があれば見出しの名前（測点・X・Y・標高・備考・追加距離）で列を見分けます。見出しが無いときは「測点名・X・Y・高さ・備考」の順（「測点名・追加距離・X・Y」の順も読めます）。追加距離は備考に入ります。Excel でコピーした範囲は、表のどのマスか「ここに貼り付け」の欄に貼ると取り込みます。CSV は UTF-8・Shift_JIS（Excel の普通の CSV）どちらも読めます。<br>X＝北が＋、Y＝東が＋（測量の座標）。</p>
   </div>
 </section>
 
@@ -437,8 +437,30 @@ $("ptCsvOut").onclick = ()=>{
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download = "座標一覧.csv"; a.click();
 };
 // 測点名,X,Y,高さ,備考 の行を取り込む（CSV・貼り付け共通）
+// 列の並びをそろえる → [測点名, X, Y, 高さ, 備考]
+//   見出しの行があれば見出しの名前で列を探す（測点・追加距離・X・Y のような表も読める）。追加距離は備考へ
+//   見出しが無く、測点名の次の列が 0 ちょうどから増えていく数で、その後ろに数が2列あれば、それを追加距離とみなす
+function mapRows(rows){
+  if(!rows.length) return rows;
+  const h = rows[0].map(c=>z2h(c).toUpperCase());
+  const find = re=>h.findIndex(c=>re.test(c));
+  let iN=find(/点名|測点|名称|点番|NAME/), iX=find(/^X|^Ｘ|北/), iY=find(/^Y|^Ｙ|東/), iH=find(/標高|高さ|^H|^Z/), iR=find(/備考|NOTE|メモ/), iD=find(/追加距離|追距|累加/);
+  let body = rows;
+  if(iX>=0 && iY>=0 && num(rows[0][iX])==null){ body = rows.slice(1); if(iN<0) iN=0; }
+  else{
+    iN=0; iX=1; iY=2; iH=3; iR=4; iD=-1;
+    const d = rows.map(r=>num(r[1])).filter(v=>v!=null);
+    const nums = r=>r.slice(1).filter(c=>num(c)!=null).length;
+    if(d.length===rows.length && d[0]===0 && d.every((v,k)=>k===0||v>=d[k-1]) && rows.every(r=>nums(r)>=3)){ iD=1; iX=2; iY=3; iH=4; iR=5; }
+  }
+  return body.map(r=>{
+    const g=i=>i>=0?r[i]:undefined, dv=num(g(iD));
+    const note=[String(g(iR)??"").trim(), dv!=null?`追加距離 ${dv.toFixed(3)}`:""].filter(s=>s).join("・");
+    return [g(iN), g(iX), g(iY), g(iH), note];
+  });
+}
 function importRows(rows, from){
-  const body = rows.filter(r=>num(r[1])!=null && num(r[2])!=null && String(r[0]??"").trim());
+  const body = mapRows(rows).filter(r=>num(r[1])!=null && num(r[2])!=null && String(r[0]??"").trim());
   if(!body.length){ alert(`読める行がありませんでした（${from}は 測点名・X・Y・高さ・備考 の順）。`); return; }
   const add = confirm(`${from}から ${body.length} 点を読み込みます。\nOK＝今の一覧に足す（同じ名前は上書き）／キャンセル＝今の一覧と入れ替え`);
   if(!add) S.pts = [];
