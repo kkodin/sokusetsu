@@ -42,6 +42,18 @@ tr.hit td{background:var(--hit)}
 td.r{background:var(--res);text-align:right;font-weight:bold}
 .big{font-size:20px}
 .note{font-size:13px;color:var(--sub)}
+.sheet{margin-top:12px}
+.sheet h2{font-size:17px;color:var(--ink)}
+.sheet td{white-space:normal;text-align:left}
+.xs{width:100%;max-width:860px;height:auto;display:block;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.xs text{font-size:12px;fill:var(--ink);paint-order:stroke;stroke:var(--bg);stroke-width:3px}
+.xs .dim{fill:#1f6fd1}.xs .lv{fill:var(--sub)}
+@media print{
+  body.pcs header, body.pcs section:not(#ch), body.pcs #ch > :not(#csSheets){display:none!important}
+  body.pcs #ch{display:block!important}
+  body.pcs .sheet{break-after:page;border:0;box-shadow:none}
+  body.pcs .xs{max-width:none}
+}
 #pick{position:fixed;z-index:50;background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.18);max-height:340px;overflow:auto;min-width:280px;display:none}
 #pick .hd{position:sticky;top:0;background:var(--head);font-size:12px;color:var(--sub);padding:5px 10px}
 #pick .it{padding:7px 10px;cursor:pointer;border-top:1px solid var(--line);line-height:1.3}
@@ -158,6 +170,46 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
 <!-- 丁張 -->
 <section id="ch">
   <div class="card">
+    <h2>丁張シート（測点ごと・切土）</h2>
+    <div class="grid">
+      <div><label>施工する側（測点が進む向きに見て）</label><select id="csSide"><option value="L">左（L）</option><option value="R">右（R）</option></select></div>
+      <div><label>中心→切土法面（石積天端の高さで）m</label><input id="csW" inputmode="decimal" class="num" placeholder="例 7.424"></div>
+      <div><label>切土勾配 1 :</label><input id="csN" inputmode="decimal" class="num" placeholder="例 0.409"></div>
+      <div><label>杭の OFFSET（法面から外へ）m</label><input id="csOff" inputmode="decimal" class="num" placeholder="例 1.0"></div>
+      <div><label>水平抜き板の下端（石積天端から）m</label><input id="csDv" inputmode="decimal" class="num" placeholder="例 -0.224（下はマイナス）"></div>
+      <div><label>石積の勾配 1 :</label><input id="csM" inputmode="decimal" class="num" placeholder="例 0.5"></div>
+      <div><label>中心→歩車道ブロック m</label><input id="csA" inputmode="decimal" class="num" placeholder="例 3.338"></div>
+      <div><label>歩道有効幅 m（歩車道ブロックから石積前面まで）</label><input id="csSW" inputmode="decimal" class="num" placeholder="例 2.499"></div>
+      <div><label>舗装の勾配 %（石積側が高い）</label><input id="csG" inputmode="decimal" class="num" placeholder="例 1.0"></div>
+      <div><label>根入れ m（舗装から基礎天端まで）</label><input id="csNe" inputmode="decimal" class="num" placeholder="例 0.300（0.300 以上）"></div>
+      <div><label>折れ点での距離</label><select id="csBend"><option value="par">平行な線の角として（÷cos）</option><option value="raw">入れた距離のまま</option></select></div>
+    </div>
+    <h2 style="margin-top:14px">石積の形式（標準図）… 測点ごとに選びます</h2>
+    <div class="scroll"><table id="csTy"></table></div>
+    <div class="row" style="margin-top:6px"><button class="btn ghost small" id="csTyAdd">形式を追加</button>
+      <label style="display:flex;align-items:center;gap:6px">ふだん使う形式 <select id="csType" style="width:auto"></select></label></div>
+    <p class="note">天端の幅＝石積天端の前面から法面（掘削線）までの水平の長さ（標準図の 839・894・950 など）。中心→法面 が空欄なら 中心→ブロック＋歩道幅＋石積勾配×石積高＋天端の幅 で出します。床付＝支持力対策工の下端。</p>
+    <div id="csInfo" class="note" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <h2>測点ごとの値（空欄は上の値を使います）</h2>
+    <div class="scroll"><table id="csTable"></table></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn ghost" id="csAll">中心線の測点を全部並べる</button>
+      <button class="btn ghost" id="csAkuwa">阿久和南の図面の値を入れる</button>
+      <button class="btn ghost" id="csAdd">行を追加</button>
+      <button class="btn" id="csSave">杭を座標一覧に追加</button>
+      <button class="btn ghost" id="csPrint">シートを印刷</button>
+    </div>
+    <p class="note">中心線＝座標一覧の「No.0」「No.1」…（No.5+10 なども可）を番号の順につないだ線。センターでなく任意の線のときは、その線の点を No.〇 の名前で入れてください。<br>
+    杭の通り＝その測点を頂点に、前後の測点との角を2等分した向き（端の測点は隣の測点との線に直角）。杭は 中心→法面 ＋ OFFSET だけ出した所。<br>
+    杭→法面（抜き板）＝抜き板の下端の高さで、杭から中心側へこの長さの所を法面が通る（OFFSET ＋ 勾配×（天端−抜き板下端））。法長は抜き板下端から床付まで。<br>
+    床付は、空欄なら 歩車道ブロック天端 ＋ 舗装の勾配 × 歩道幅（＝石積前面の舗装高）− 根入れ − 基礎の厚さ で出します（ブロック天端の高さが必要）。根入れは横断図ごとに確認して、違う測点は行に入れてください。<br>
+    杭天は打った杭の頭を測った高さ（空欄でも計算できます。入れると 杭天→抜き板下端 が出ます）。水平角・距離は測設タブの器械点・後視点で出します。</p>
+  </div>
+  <div id="csSheets"></div>
+  <details class="card"><summary style="cursor:pointer;color:var(--sub)">直線の基準線から出す（前の方式）</summary>
+  <div class="card">
     <h2>丁張の条件（工程ごとに覚えます）</h2>
     <div class="grid">
       <div><label>工程</label><select id="chStep"><option>切土</option><option>床付</option><option>基礎</option><option>石積み</option></select></div>
@@ -187,6 +239,7 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
     「杭→のり面」：水平貫の上で、杭から谷側へこの長さの所を のり面（設計の線）が通ります。そこから勾配の角度で斜め貫（法貫）を下げて付けます。マイナスなら のり面が杭より山側を通ります（杭がのり面の中に入っている）。<br>
     床付の高さ＝基準線の高さ − 「基準線から床付までの高さ」。法長＝貫の高さから床付までの のり面に沿った長さ（√(1＋n²)×高さ）。</p>
   </div>
+  </details>
 </section>
 
 <!-- トラバース -->
@@ -805,6 +858,234 @@ $("chAddRow").onclick = ()=>{
 $("chClear").onclick = ()=>{ if(confirm(`「${S.ch.step||"切土"}」の杭を全部消しますか？`)){ chCur().rows=[]; save(); chRender(); } };
 $("chSave").onclick = ()=>{ if(!chOut.length){ alert("計算できた杭がありません（追加距離を入れてください）。"); return; } addPts(chOut, `${S.ch.step||"切土"}丁張`); };
 
+/* ---------- 丁張シート（測点ごと） ---------- */
+// 測点名「No.5」「NO.5+10」「№5」→ 並べる順の数（番号・追加距離）
+function stNo(n){ const m=pickNorm(n).match(/^no(\d+)(?:\+(\d+(?:\.\d+)?))?$/); return m ? +m[1] + (m[2]? +m[2]/1e4 : 0) : null; }
+function csLine(){ return S.pts.filter(p=>p.x!=null && stNo(p.n)!=null).sort((a,b)=>stNo(a.n)-stNo(b.n)); }
+// 石積の形式（ブロック積擁壁標準図・基礎工の断面図）：石積勾配 m・天端の幅 top・基礎コンクリート（厚 bt・幅 bw）・支持力対策工（厚 mt・幅 mw）・切土勾配 nn（空欄は上の値）
+const CS_TYPES = [
+  {n:"1ブロック 1:0.4（3～5m）", m:"0.4", top:"0.862", bt:"0.350", bw:"0.564", mt:"0.300", mw:"1.280", nn:""},
+  {n:"2・4ブロック 1:0.5（3m以下）", m:"0.5", top:"0.839", bt:"0.300", bw:"0.502", mt:"0.300", mw:"0.960", nn:""},
+  {n:"3ブロック 1:0.5（3～5m）", m:"0.5", top:"0.894", bt:"0.400", bw:"0.600", mt:"0.300", mw:"1.280", nn:""},
+  {n:"3ブロック 1:0.5（5m以上）", m:"0.5", top:"0.950", bt:"0.400", bw:"0.600", mt:"0.300", mw:"1.280", nn:""}];
+S.cs ??= {set:{csSide:"L", csBend:"par"}, rows:[]};
+S.cs.types ??= CS_TYPES.map(t=>({...t}));
+delete S.cs.lay;
+function csType(r){ const i=num(r?.ty) ?? num(S.cs.set.csType) ?? 0; return S.cs.types[i] || S.cs.types[0] || {}; }
+function csLayers(t){ return [{n:"支持力対策工", t:num(t.mt), w:num(t.mw)}, {n:"基礎コンクリート", t:num(t.bt), w:num(t.bw)}].filter(l=>l.t); }
+const csIds=["csSide","csW","csN","csOff","csDv","csBend","csSW","csG","csNe","csM","csA","csType"];
+const csIn=[["n","測点名",96],["ty","形式",130],["pg","前面地盤(直接)",84],["cb","歩車道ブロック天端",90],["a","中心→ブロック",80],["sw","歩道幅",70],["hw","石積高(舗装→天端)",84],["m","石積勾配 1:",64],["ne","根入れ",64],["ht","石積天端(直接)",84],["hf","床付(直接)",84],["w","中心→法面",80],["nn","勾配 1:",64],["off","OFFSET",64],["dv","抜き板(天端から)",80],["hk","杭天(実測)",84]];
+const csOutCols=[["K","杭名"],["PV","舗装高(石積前面)"],["HT","石積天端"],["HF","床付"],["X","杭 X"],["Y","杭 Y"],["HA","水平角"],["SG","水平距離"],["HB","抜き板下端の高さ"],["KB","杭天→抜き板下端"],["DB","杭→法面(抜き板)"],["DF","杭→法面(床付)"],["SL","法長(抜き板→床付)"],["FT","基礎天端"]];
+function csRender(){
+  csIds.forEach(id=>$(id).value = S.cs.set[id] ?? "");
+  const tyCols=[["n","名前",130],["m","石積勾配 1:",64],["top","天端の幅",70],["bt","基礎コン 厚",70],["bw","幅",64],["mt","支持力対策 厚",70],["mw","幅",64],["nn","切土勾配 1:",64]];
+  $("csTy").innerHTML = `<tr><th>#</th>${tyCols.map(c=>`<th>${c[1]}</th>`).join("")}<th></th></tr>` +
+    S.cs.types.map((t,k)=>`<tr><td>${k+1}</td>${tyCols.map(c=>`<td class="${c[0]==="n"?"":"n"}"><input data-k="${k}" data-c="${c[0]}" value="${esc(t[c[0]]??"")}" ${c[0]==="n"?"":'inputmode="decimal"'} style="width:${c[2]}px"></td>`).join("")}<td><button class="rowDel" data-del="${k}" title="この形式を消す">×</button></td></tr>`).join("");
+  const tyOpt = sel => S.cs.types.map((t,i)=>`<option value="${i}"${String(sel)===String(i)?" selected":""}>${esc(t.n||`形式${i+1}`)}</option>`).join("");
+  $("csType").innerHTML = tyOpt(S.cs.set.csType ?? 0);
+  while(S.cs.rows.length<3) S.cs.rows.push({});
+  const ph={w:S.cs.set.csW, nn:S.cs.set.csN, off:S.cs.set.csOff, dv:S.cs.set.csDv, sw:S.cs.set.csSW, ne:S.cs.set.csNe, m:S.cs.set.csM, a:S.cs.set.csA};
+  $("csTable").innerHTML = `<tr><th>#</th>${csIn.map(c=>`<th>${c[1]}</th>`).join("")}${csOutCols.map(c=>`<th>${c[1]}</th>`).join("")}</tr>` +
+    S.cs.rows.map((r,k)=>`<tr><td>${k+1}<button class="rowDel" data-del="${k}" title="この行を消す">×</button></td>${csIn.map(c=>c[0]==="ty" ? `<td><select data-k="${k}" data-c="ty" style="width:${c[2]}px;min-height:38px;padding:4px"><option value="">（ふだんの形式）</option>${tyOpt(r.ty??"x")}</select></td>` : `<td class="${c[0]==="n"?"":"n"}"><input data-k="${k}" data-c="${c[0]}" value="${esc(r[c[0]]??"")}" ${c[0]==="n"?'data-pick="1" autocomplete="off"':'inputmode="decimal"'} placeholder="${esc(ph[c[0]]??"")}" style="width:${c[2]}px"></td>`).join("")}${csOutCols.map(c=>`<td class="${["K","HA","SG","DB","KB"].includes(c[0])?"r":"n"}" id="cs${c[0]}${k}"></td>`).join("")}</tr>`).join("");
+  csCalc();
+}
+csIds.forEach(id=>["input","change"].forEach(ev=>$(id).addEventListener(ev,()=>{ S.cs.set[id]=$(id).value; save();
+  const ph={csW:"w",csN:"nn",csOff:"off",csDv:"dv",csSW:"sw",csNe:"ne",csM:"m",csA:"a"}[id]; if(ph) document.querySelectorAll(`#csTable input[data-c="${ph}"]`).forEach(e=>e.placeholder=$(id).value);
+  csCalc(); })));
+$("csTy").addEventListener("input", e=>{ const t=e.target; if(t.dataset.k==null) return; S.cs.types[t.dataset.k][t.dataset.c]=t.value; save(); csCalc(); });
+$("csTy").addEventListener("change", e=>{ if(e.target.dataset.c==="n") csRender(); });
+$("csTy").addEventListener("click", e=>{ const k=e.target.dataset?.del; if(k==null) return; if(!confirm("この形式を消しますか？")) return; S.cs.types.splice(k,1); save(); csRender(); });
+$("csTyAdd").onclick = ()=>{ S.cs.types.push({n:"",m:"",top:"",bt:"",bw:"",mt:"",mw:"",nn:""}); save(); csRender(); };
+$("csTable").addEventListener("input", e=>{ const t=e.target; if(t.dataset.k==null) return; S.cs.rows[t.dataset.k][t.dataset.c]=t.value; save(); csCalc(); });
+$("csTable").addEventListener("change", e=>{ const t=e.target; if(t.dataset.c && t.dataset.c!=="n"){ t.value=z2h(t.value); S.cs.rows[t.dataset.k][t.dataset.c]=t.value; save(); } });
+$("csTable").addEventListener("click", e=>{ const k=e.target.dataset?.del; if(k==null) return;
+  if(Object.values(S.cs.rows[k]).some(v=>v) && !confirm(`${+k+1} 行目を消しますか？`)) return; S.cs.rows.splice(k,1); save(); csRender(); });
+$("csAdd").onclick = ()=>{ S.cs.rows.push({}); save(); csRender(); };
+$("csAll").onclick = ()=>{
+  const have=new Set(S.cs.rows.map(r=>pickNorm(r.n??""))), add=csLine().filter(p=>!have.has(pickNorm(p.n)));
+  if(!add.length){ alert(csLine().length ? "中心線の測点はもう全部並んでいます。" : "座標一覧に No.0・No.1 … の点がありません。"); return; }
+  S.cs.rows = S.cs.rows.filter(r=>Object.values(r).some(v=>v)).concat(add.map(p=>({n:p.n})));
+  S.cs.rows.sort((a,b)=>(stNo(a.n??"")??1e9)-(stNo(b.n??"")??1e9)); save(); csRender();
+};
+// 阿久和南：横断図（中心→ブロック・歩道幅・石積高）、展開図（石積天端・前面地盤・支持力対策下端＝床付）、標準図（形式）から
+// 形式 0＝1ブロック 1:0.4 1＝2・4ブロック 2＝3ブロック（3～5m） 3＝3ブロック（5m以上）。基礎は 断面図（基礎工）のマットレス工 300・幅 1280／960。切土勾配は H5m以上の横断図に 1:0.6
+const CS_AKUWA = [
+  {n:"No.1",  ty:"0", a:"3.570", sw:"2.576", hw:"2.948", ht:"45.000", pg:"42.250", hf:"41.300"},
+  {n:"No.3",  ty:"2", a:"3.338", sw:"2.499", hw:"2.502", ht:"44.671", pg:"42.163", hf:"40.960"},
+  {n:"No.4",  ty:"2", a:"3.340", sw:"2.000", hw:"4.075", ht:"46.235", pg:"42.160", hf:"40.960"},
+  {n:"No.5",  ty:"3", a:"3.324", sw:"2.000", hw:"5.818", ht:"47.920", pg:"42.102", hf:"40.960", nn:"0.6"},
+  {n:"No.6",  ty:"3", a:"3.330", sw:"2.000", hw:"5.814", ht:"47.940", pg:"42.126", hf:"40.960", nn:"0.6"},
+  {n:"No.7",  ty:"3", a:"3.325", sw:"2.000", hw:"5.187", ht:"47.290", pg:"42.103", hf:"40.960", nn:"0.6"},
+  {n:"No.8",  ty:"3", a:"3.310", sw:"2.000", hw:"5.217", ht:"47.280", pg:"42.063", hf:"40.960", nn:"0.6"},
+  {n:"No.8+6.670", ty:"3", a:"3.320", sw:"2.000", hw:"5.167", ht:"47.217", pg:"42.050", hf:"40.960", nn:"0.6"},
+  {n:"No.9",  ty:"3", a:"3.330", sw:"2.000", hw:"5.087", ht:"47.118", pg:"42.031", hf:"40.960", nn:"0.6"},
+  {n:"No.10", ty:"2", a:"3.330", sw:"2.000", hw:"2.946", ht:"44.936", pg:"41.990", hf:"40.960"},
+  {n:"No.11", ty:"1", a:"3.350", sw:"2.000", hw:"1.715", ht:"43.682", pg:"41.964", hf:"41.060"}];
+$("csAkuwa").onclick = ()=>{
+  if(S.cs.rows.some(r=>Object.values(r).some(v=>v)) && !confirm("表を阿久和南の図面の値に入れ替えますか？（今の表の値は消えます。杭天は空になります）")) return;
+  S.cs.types = CS_TYPES.map(t=>({...t}));
+  S.cs.set = {...S.cs.set, csSide:"L", csType:"2", csN:S.cs.set.csN||"0.5", csOff:S.cs.set.csOff||"1.0", csDv:S.cs.set.csDv||"-0.224", csG:S.cs.set.csG||"1.0", csNe:S.cs.set.csNe||"0.300"};
+  S.cs.rows = CS_AKUWA.map(r=>({...r}));
+  save(); csRender();
+  const miss = CS_AKUWA.filter(r=>!csLine().some(p=>pickNorm(p.n)===pickNorm(r.n))).map(r=>r.n);
+  if(miss.length) alert(`座標一覧に次の中心線の点がありません：${miss.join("、")}\n座標一覧に入れると杭の座標が出ます。`);
+};
+let csOut=[];
+// 杭の通り（中心線から施工側へ向く単位ベクトル）と、その測点での折れ角
+function csDir(line, i, side){
+  const P=line[i], A=line[i-1], B=line[i+1], u=(p,q)=>{ const l=Math.hypot(q.x-p.x,q.y-p.y)||1; return [(q.x-p.x)/l,(q.y-p.y)/l]; };
+  let t, bend=0;
+  if(A && B){ const a=u(A,P), b=u(P,B); t=[a[0]+b[0], a[1]+b[1]]; bend=deg(Math.acos(Math.max(-1,Math.min(1,a[0]*b[0]+a[1]*b[1])))); if(Math.hypot(...t)<1e-9) t=a; }
+  else t = B ? u(P,B) : u(A,P);
+  const l=Math.hypot(...t); t=[t[0]/l,t[1]/l];
+  // X が北・Y が東。進む向きの左＝(ty, −tx)
+  const n = side==="R" ? [-t[1], t[0]] : [t[1], -t[0]];
+  return {n, bend, az:azimuth(0,0,n[0],n[1])};
+}
+function csCalc(){
+  csOut=[]; const st=S.cs.set, line=csLine(), info=$("csInfo"), sheets=[];
+  S.cs.rows.forEach((_,k)=>csOutCols.forEach(c=>{ const e=$("cs"+c[0]+k); if(e) e.textContent=""; }));
+  const O={x:num($("soOX").value), y:num($("soOY").value), h:num($("soOH").value)}, Bk={x:num($("soBX").value), y:num($("soBY").value)};
+  const inst=num($("soI").value)??0;
+  const okInst = O.x!=null && O.y!=null && Bk.x!=null && Bk.y!=null && (O.x!==Bk.x || O.y!==Bk.y);
+  info.innerHTML = (line.length ? `中心線：${esc(line[0].n)} → ${esc(line[line.length-1].n)}（${line.length} 点）` : `<span class="warn">座標一覧に No.0・No.1 … の点（中心線）がありません。</span>`) +
+"<br>" +
+    (okInst ? `器械点 ${esc($("soO").value||"（直接入力）")}・後視点 ${esc($("soB").value||"（直接入力）")}（測設タブの値）${O.h==null?"　器械点の標高が空欄なので、天頂角・斜距離は出しません。":""}` : `<span class="warn">測設タブで器械点・後視点を入れると、杭への水平角・距離が出ます。</span>`);
+  S.cs.rows.forEach((r,k)=>{
+    const cell=c=>$("cs"+c+k), nm=String(r.n??"").trim(); if(!nm) return;
+    const i=line.findIndex(p=>pickNorm(p.n)===pickNorm(nm));
+    if(i<0){ cell("K").innerHTML=`<span class="warn">中心線に無い測点</span>`; return; }
+    const ty=csType(r), lay=csLayers(ty), tsum=lay.reduce((a,l)=>a+l.t,0);
+    // 値の順：その行 → 形式 → 上の共通の値
+    const v=c=>{ const a=num(r[c]); if(a!=null) return a; const b=num({m:ty.m, nn:ty.nn}[c]); return b!=null ? b : num({w:st.csW,nn:st.csN,off:st.csOff,dv:st.csDv,sw:st.csSW,ne:st.csNe,m:st.csM,a:st.csA}[c]); };
+    const n=v("nn"), off=v("off"), dv=v("dv"), hk=num(r.hk), m=v("m"), ca=v("a"), hw=num(r.hw), top=num(ty.top);
+    // 中心→法面：直接 → 中心→ブロック＋歩道幅＋石積勾配×石積高＋天端の幅 → 共通の値
+    let W=num(r.w), wCalc=false;
+    if(W==null && ca!=null && v("sw")!=null && hw!=null && m!=null && top!=null){ W=ca+v("sw")+m*hw+top; wCalc=true; }
+    if(W==null) W=num(st.csW);
+    let ht=num(r.ht);
+    // 床付：直接入れた値。空欄なら 歩車道ブロック天端 ＋ 勾配×歩道幅（石積前面の舗装高）− 根入れ − 基礎の厚さ
+    const cb=num(r.cb), sw=v("sw"), ne=v("ne"), gp=num(st.csG)??0;
+    const pv = num(r.pg) ?? (cb!=null && sw!=null ? cb+gp/100*sw : null);   // 前面地盤を直接入れたらそれ
+    let hf=num(r.hf), hfCalc=false;
+    if(hf==null && pv!=null && ne!=null){ hf=pv-ne-tsum; hfCalc=true; }
+    if(pv!=null) cell("PV").textContent=f3(pv);
+    // 石積天端：直接入れた値。空欄なら 舗装高（石積前面）＋ 石積高
+    let htCalc=false; if(ht==null && pv!=null && hw!=null){ ht=pv+hw; htCalc=true; }
+    if(ht!=null) cell("HT").innerHTML = f3(ht) + (htCalc?`<small class="note">（計算）</small>`:"");
+    if(hf!=null) cell("HF").innerHTML = f3(hf) + (hfCalc?`<small class="note">（計算）</small>`:"");
+    const neReal = pv!=null && hf!=null ? pv-(hf+tsum) : null;
+    if(neReal!=null && neReal<0.3-1e-6) cell("HF").innerHTML += `<br><span class="warn">根入れ ${f3(neReal)}（0.300 未満）</span>`;
+    if(W==null || off==null){ cell("K").innerHTML=`<span class="warn">中心→法面・OFFSET が要ります</span>`; return; }
+    const P=line[i], d=csDir(line,i,st.csSide), kb = st.csBend==="par" && d.bend>0 ? 1/Math.cos(rad(d.bend/2)) : 1;
+    const L=(W+off)*kb, x=P.x+d.n[0]*L, y=P.y+d.n[1]*L, kn=nm+(st.csSide==="R"?"R":"L");
+    cell("K").textContent=kn; cell("X").textContent=f3(x); cell("Y").textContent=f3(y);
+    const o={kn, st:P, d, kb, W, wCalc, n, off, dv, ht, hf, hk, x, y, lay, tsum, cb, sw, gp, pv, pgIn:num(r.pg)!=null, neReal, hfCalc, htCalc, m, ca, hw, ty, top};
+    if(ht!=null && dv!=null){ o.hb=ht+dv; cell("HB").textContent=f3(o.hb); if(hk!=null){ o.kbh=hk-o.hb; cell("KB").textContent=f3(o.kbh); } }
+    if(n!=null && ht!=null){
+      if(o.hb!=null){ o.db=off+n*(ht-o.hb); cell("DB").textContent=f3(o.db); }
+      if(hf!=null){ o.df=off+n*(ht-hf); cell("DF").textContent=f3(o.df); if(o.hb!=null){ o.sl=(o.hb-hf)*Math.sqrt(1+n*n); cell("SL").textContent=f3(o.sl); } }
+    }
+    if(hf!=null && lay.length){ o.ft=hf+tsum; cell("FT").textContent=f3(o.ft); }
+    if(okInst){ const a=stake(O,Bk,{x,y,h:o.hb??null},inst,0); o.ha=a.ha; o.sg=a.sg; o.za=a.za; o.dg=a.dg; cell("HA").textContent=dmsOnly(a.ha); cell("SG").textContent=f3(a.sg); }
+    csOut.push({n:kn, x:+x.toFixed(3), y:+y.toFixed(3), h:hk});
+    sheets.push(o);
+  });
+  $("csSheets").innerHTML = sheets.map(csSheet).join("");
+}
+// 横断図（施工側の法面まわりを実寸で。中心は省略して寸法だけ）
+function csSheet(o){
+  const box=$("csSheets"), Wpx=Math.max(340, Math.min(860, box.clientWidth||800)), Hpx=Math.round(Math.max(400, Wpx*0.6));
+  const {W,n,off,ht,hf,hb,hk,lay}=o, nn=n??0, R=S.cs.set.csSide==="R";   // lay は下から 支持力対策工・基礎コンクリート
+  const zTop=Math.max(ht??0, hk??-1e9, hb??-1e9)+0.5, zBot=(hf??(ht??0)-1)-0.3;
+  const uf = hf!=null && ht!=null ? W-nn*(ht-hf) : W;
+  const wmax=Math.max(0.8, ...lay.map(l=>l.w??0));
+  // 石積前面（舗装の高さで）＝中心→ブロック＋歩道幅
+  const uwf = o.ca!=null && o.sw!=null ? o.ca+o.sw : null;
+  const u0=Math.min(uf-wmax, uwf!=null ? o.ca-0.3 : 1e9, uwf!=null && o.m!=null && o.pv!=null && hf!=null ? uwf-o.m*(o.pv-hf) : 1e9)-0.5;
+  let u1=W+off+1.3;
+  const padL=58, padR=58, padT=34, padB=30;
+  // 縦と横の縮尺は別（横は 縦の3倍まで広げる）。勾配は 1:n の字で読む
+  const sz=(Hpx-padT-padB)/(zTop-zBot);
+  let sx=Math.min((Wpx-padL-padR)/(u1-u0), sz*3);
+  // 杭の外側に寸法の字（約 110px）が入るだけの余白を取る
+  if((u1-(W+off))*sx<110){
+    const A=Wpx-padL-padR, us_=W+off, r=110/A;
+    u1 = Math.max(us_+110/(sz*3), (us_-u0*r)/(1-r));   // 横いっぱいのときも 縦の3倍で止まるときも足りるように
+    sx = Math.min(A/(u1-u0), sz*3);
+  }
+  const used=(u1-u0)*sx, ox=(Wpx-used)/2;
+  // 左側の施工なら 外（杭の側）を左、中心を右に描く
+  const X=u=> R ? ox+(u-u0)*sx : Wpx-ox-(u-u0)*sx, Z=z=>padT+(zTop-z)*sz, out=R?1:-1;   // out＝外へ向かう画面の向き
+  const L=(x1,y1,x2,y2,a="")=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" ${a}/>`;
+  const T=(x,y,t,a="",c="")=>`<text x="${x}" y="${y}" ${a} class="${c}">${t}</text>`;
+  const anc=d=>`text-anchor="${d>0?"start":d<0?"end":"middle"}"`;
+  const blue='stroke="#1f6fd1" stroke-width="1" marker-start="url(#ar)" marker-end="url(#ar)"';
+  const hd=(xa,xb,y,t,dy=-4)=>L(xa,y,xb,y,blue)+T((xa+xb)/2,y+dy,t,anc(0),"dim");
+  const vd=(x,ya,yb,t,dir=out)=>L(x,ya,x,yb,blue)+T(x+dir*4,(ya+yb)/2+4,t,anc(dir),"dim");
+  let g="";
+  const us=W+off, xs=X(us);
+  // 石積天端の線
+  if(ht!=null){ g+=L(X(u0),Z(ht),X(u1),Z(ht),'stroke="var(--sub)" stroke-dasharray="10 3 2 3"'); g+=T(X(u0)+out*4,Z(ht)-5,`石積天端 ${f3(ht)}`,anc(out),"lv"); }
+  // 切土法面
+  if(n!=null && ht!=null){ const zb=hf??zBot, zt=zTop-0.05; g+=L(X(W-nn*(ht-zb)),Z(zb),X(W+nn*(zt-ht)),Z(zt),'stroke="var(--ink)" stroke-width="2.5"');
+    const zm=hf!=null?(ht+hf)/2:ht-0.8; g+=T(X(W-nn*(ht-zm))+out*10,Z(zm),`切土 1:${n}（${deg(Math.atan(1/(nn||1e-9))).toFixed(1)}°）`,anc(out),"dim"); }
+  // 床付・基礎（法尻から中心側へ）
+  if(hf!=null){
+    g+=L(X(u0),Z(hf),X(uf),Z(hf),'stroke="var(--ink)" stroke-width="1.5"'); g+=T(X(u0)+out*4,Z(hf)+16,`床付 ${f3(hf)}`,anc(out),"lv");
+    let z=hf; lay.forEach((l,i)=>{ const w=l.w??wmax, xa=Math.min(X(uf-w),X(uf)), xw=Math.abs(X(uf)-X(uf-w));
+      g+=`<rect x="${xa}" y="${Z(z+l.t)}" width="${xw}" height="${l.t*sz}" fill="${["#c9b48a","#b9c4cf","#d9c9b0"][i%3]}" stroke="var(--ink)" stroke-width=".8" opacity=".85"/>`;
+      g+=T(xa+xw/2, Z(z+l.t/2)+4, `${esc(l.n)} ${f3(l.t)}`, anc(0)); z+=l.t; });
+    if(lay.length){ const w0=lay[lay.length-1].w??wmax; g+=T((X(uf)+X(uf-w0))/2, Z(o.ft)-5, `基礎天端 ${f3(o.ft)}`, anc(0), "lv"); }
+    if(ht!=null) g+=vd(X(u0)+out*2, Z(ht), Z(hf), `天端−床付 ${f3(ht-hf)}`, out);
+  }
+  // 舗装（ブロックから石積前面へ）と 石積の前面
+  if(uwf!=null && o.pv!=null && o.cb!=null){
+    g+=L(X(o.ca),Z(o.cb),X(uwf),Z(o.pv),'stroke="#555" stroke-width="3"');
+    g+=`<rect x="${X(o.ca)-(R?0:6)}" y="${Z(o.cb)-4}" width="6" height="14" fill="#888"/>`;
+    g+=T((X(o.ca)+X(uwf))/2, Z((o.cb+o.pv)/2)-8, `舗装 ${o.gp}%　歩道幅 ${f3(o.sw)}`, anc(0), "dim");
+    g+=T(X(o.ca), Z(o.cb)+24, `ブロック天端 ${f3(o.cb)}`, anc(0), "lv");
+    g+=T(X(uwf)+out*4, Z(o.pv)+16, `舗装高 ${f3(o.pv)}`, anc(out), "lv");
+    if(o.m!=null && ht!=null){ const zb=hf!=null ? hf+o.tsum : o.pv; g+=L(X(uwf-o.m*(o.pv-zb)),Z(zb),X(uwf+o.m*(ht-o.pv)),Z(ht),'stroke="#b03030" stroke-width="2"');
+      g+=T(X(uwf+o.m*((ht-o.pv)/2))-out*6, Z((ht+o.pv)/2), `石積 1:${o.m}`, anc(-out), "dim"); }
+  }
+  // 杭と水平抜き板
+  const kTop=hk ?? (hb!=null ? hb+0.25 : (ht??zTop-0.5)), kBot=(hb??ht??zTop)-0.6;
+  g+=`<rect x="${xs-4}" y="${Z(kTop)}" width="8" height="${(kTop-kBot)*sz}" fill="#1f6fd1"/>`;
+  g+=T(xs, Z(kTop)-6, hk!=null?`杭天 ${f3(hk)}`:"杭天（未測）", anc(0)+' font-weight="bold"');
+  if(hb!=null){
+    const ue=(o.db!=null ? us-o.db : W)-0.2, xa=Math.min(xs,X(ue)), xw=Math.abs(xs-X(ue));
+    g+=`<rect x="${xa}" y="${Z(hb)-7}" width="${xw}" height="7" fill="#c08a4a" stroke="#7a5326"/>`;
+    g+=T(xs+out*8, Z(hb)+20, `抜き板下端 ${f3(hb)}`, anc(out), "lv");
+    if(o.db!=null) g+=hd(xs, X(us-o.db), Z(hb)+18, `杭→法面 ${f3(o.db)}`, 14);
+  }
+  // 寸法：OFFSET（天端の高さ）、天端→抜き板、杭天→抜き板
+  if(ht!=null) g+=hd(xs, X(W), Z(ht)-16, `OFFSET ${f3(off)}`);
+  if(ht!=null && hb!=null && Math.abs(ht-hb)>1e-4) g+=vd(xs+out*62, Z(ht), Z(hb), `${o.dv>=0?"+":""}${f3(o.dv)}`);
+  if(hk!=null && hb!=null) g+=vd(xs+out*30, Z(hk), Z(hb), `${f3(o.kbh)}`);
+  // 中心の向き
+  g+=T(R?6:Wpx-6, 18, `${R?"← ":""}中心まで ${f3(W)}（石積天端の高さで法面まで）${R?"":" →"}`, anc(R?1:-1)+' font-weight="bold"');
+  const svg=`<svg class="xs" viewBox="0 0 ${Wpx} ${Hpx}" role="img" aria-label="${esc(o.kn)} の横断図"><defs><marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 2L8 5L0 8Z" fill="#1f6fd1"/></marker></defs>${g}</svg>`;
+  const row=(a,b)=>`<tr><th style="text-align:left">${a}</th><td class="n">${b}</td></tr>`;
+  return `<div class="card sheet"><h2>${esc(o.kn)} 丁張シート　<small class="note">測点 ${esc(o.st.n)}　杭の通り 方向角 ${dmsOnly(o.d.az)}${o.d.bend>0?`　折れ角 ${dmsOnly(o.d.bend)}`:""}</small></h2>${svg}
+    <div class="scroll" style="margin-top:8px;max-width:860px"><table>
+    ${row("杭の座標", `X ${f3(o.x)}　Y ${f3(o.y)}`)}
+    ${o.ha!=null?row("器械から（水平角・水平距離）", `${dmsOnly(o.ha)}　${f3(o.sg)} m${o.za!=null?`　抜き板下端を視準 天頂角 ${dmsOnly(o.za)}・斜距離 ${f3(o.dg)}`:""}`):""}
+    ${row("形式", esc(o.ty.n||""))}
+    ${row("中心→法面・中心→杭", `${f3(W)}${o.wCalc?`（${f3(o.ca)}＋${f3(o.sw)}＋${o.m}×${f3(o.hw)}＋${f3(o.top)}）`:""}　/　${f3(W+off)} m${o.kb!==1?`（折れ点の補正後 ${f3((W+off)*o.kb)} m）`:""}`)}
+    ${o.pv!=null?row(o.pgIn?"前面地盤（石積前面）":"舗装高（石積前面）", o.pgIn?f3(o.pv):`${f3(o.pv)}（歩車道ブロック天端 ${f3(o.cb)} ＋ ${o.gp}% × 歩道幅 ${f3(o.sw)}）`):""}
+    ${row("石積天端・床付", `${f3(ht)}${o.htCalc?`（舗装高＋石積高 ${f3(o.hw)}）`:""}　/　${f3(hf)}${o.hfCalc?"（舗装高から計算）":""}${ht!=null&&hf!=null?`　差 ${f3(ht-hf)}`:""}`)}
+    ${o.m!=null?row("石積の勾配・切土の勾配", `1:${o.m}　/　1:${n}`):""}
+    ${o.neReal!=null?row("根入れ（舗装→基礎天端）", `${f3(o.neReal)}${o.neReal<0.3-1e-6?`　<span class="warn">0.300 未満です。横断図を確認してください</span>`:""}`):""}
+    ${row("抜き板下端の高さ", `${f3(hb)}${hk!=null&&hb!=null?`（杭天から ${f3(o.kbh)} 下）`:""}`)}
+    ${row("杭→法面", `抜き板で ${f3(o.db)}　床付で ${f3(o.df)}`)}
+    ${row("法長（抜き板→床付）", f3(o.sl))}
+    ${lay.length?row("基礎", lay.map(l=>`${esc(l.n)} ${f3(l.t)}`).join("・")+`　基礎天端 ${f3(o.ft)}${hf!=null?`　基礎下端 ${f3(hf+(lay[0]?.t??0))}`:""}`):""}
+    </table></div></div>`;
+}
+$("csSave").onclick = ()=>{ if(!csOut.length){ alert("計算できた杭がありません。"); return; } addPts(csOut, "丁張シート"); };
+$("csPrint").onclick = ()=>{ if(!$("csSheets").innerHTML){ alert("シートがありません。"); return; } document.body.classList.add("pcs"); print(); setTimeout(()=>document.body.classList.remove("pcs"), 500); };
+
 /* ---------- トラバース ---------- */
 const trCols = [["n","測点名",""],["ha","水平角",""],["za","鉛直角(天頂角)",""],["d","距離",""],["i","器械高",""],["t","目標高",""]];
 function trEnsure(){ while(S.tr.rows.length<5) S.tr.rows.push({}); }
@@ -996,7 +1277,7 @@ function angHelp(){ document.querySelectorAll(".angHelp").forEach(e=>e.textConte
 $("stOn").onchange = ()=>{ S.set.on=+$("stOn").value; save(); stInfo(); };
 
 /* ---------- 起動 ---------- */
-function renderAll(){ angHelp(); soCalc(); fsRender(); chRender(); trRender(); invRender(); ptRender(); stRender(); }
+function renderAll(){ angHelp(); soCalc(); fsRender(); chRender(); csRender(); trRender(); invRender(); ptRender(); stRender(); }
 fillSelects(); soRestore();
 if(S.tab){ const b=document.querySelector(`nav button[data-t="${S.tab}"]`); if(b) b.click(); else renderAll(); } else renderAll();
 </script>
