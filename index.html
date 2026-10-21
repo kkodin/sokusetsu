@@ -80,7 +80,7 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
       <button class="btn ghost" id="fsAddRow">行を追加</button>
       <button class="btn ghost" id="fsClear">観測値を消す</button>
     </div>
-    <p class="note">既知座標が入っていて「既知」に印がある行で器械点を求めます。ずれ（mm）が大きい点は印を外すと、その点を除いて計算し直します。角度は 123.4530（＝123°45′30″）か「123 45 30」。目標高は空欄なら 0。</p>
+    <p class="note">既知座標が入っていて「既知」に印がある行で器械点を求めます。ずれ（mm）が大きい点は印を外すと、その点を除いて計算し直します。<span class="angHelp"></span>目標高は空欄なら 0。</p>
   </div>
   <div class="card">
     <h2>結果</h2>
@@ -187,7 +187,7 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
       <button class="btn" id="trSave">計算した点を座標一覧に追加</button>
       <button class="btn ghost" id="trClear">観測値を消す</button>
     </div>
-    <p class="note">水平角＝後視点を 0° にして右回り。鉛直角＝天頂角（水平 90°）。角度は 123.4530（＝123°45′30″）か「123 45 30」で入力。<br>トラバースのときは、2行目以降は「1つ前の点」に器械を据え「その前の点」を後視したものとして計算します。器械高・目標高は空欄なら 0。</p>
+    <p class="note">水平角＝後視点を 0° にして右回り。鉛直角＝天頂角（水平 90°）。<span class="angHelp"></span><br>トラバースのときは、2行目以降は「1つ前の点」に器械を据え「その前の点」を後視したものとして計算します。器械高・目標高は空欄なら 0。</p>
   </div>
 </section>
 
@@ -234,6 +234,13 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
     <p class="note">標高は器械点の標高を使います（空欄なら 0 m）。縮尺係数・ジオイド高の初期値は現場付近の公共基準点の成果表の値です。</p>
   </div>
   <div class="card">
+    <h2>角度の入力</h2>
+    <div class="grid">
+      <div><label>数を1つだけ入れたとき</label><select id="stAng"><option value="dec">10進数の度（123.7583）</option><option value="packed">度.分秒（123.4530＝123°45′30″）</option></select></div>
+    </div>
+    <p class="note">度分秒は「123 45 30」「123-45-30」「123.45.30」のように区切ると、どちらの設定でも 度・分・秒 として読みます。結果の角度は 度分秒 と 10進数 の両方を出します。</p>
+  </div>
+  <div class="card">
     <h2>出典</h2>
     <p class="note">公共基準点：横浜市公共基準点（二次網）成果表 398ブロック（基準点網図・点の記.pdf）。<br>境界点 S1〜S6：査定図.pdf 座標リスト（表記「世界測地系・任意座標」なので、公共座標として使う前に確認が必要）。</p>
   </div>
@@ -259,17 +266,20 @@ function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} 
 /* ---------- 数値・角度 ---------- */
 function z2h(s){ return String(s??"").replace(/[０-９．－＋，　]/g,c=>({"．":".","－":"-","＋":"+","，":",","　":" "}[c]??String.fromCharCode(c.charCodeAt(0)-0xFEE0))).replace(/[ー−]/g,"-").trim(); }
 function num(s){ s = z2h(s); if(s==="") return null; const v = Number(s); return isFinite(v) ? v : null; }
-// 123.4530 → 123°45′30″ ／ "123 45 30" ／ "123°45′30″"
+// 度分秒：「123 45 30」「123-45-30」「123.45.30」「123°45′30″」
+// 数1つ：10進数の度（123.7583）。設定で「度.分秒」にすると 123.4530 ＝ 123°45′30″
 function parseAng(s){
   s = z2h(s); if(s==="") return null;
   let neg = s.startsWith("-"); if(neg) s = s.slice(1);
   let d;
-  if(/[\s°度′'分″"秒:]/.test(s)){
-    const a = s.split(/[^0-9.]+/).filter(x=>x!=="").map(Number);
+  const dots=(s.match(/\./g)||[]).length;
+  if(/[\s°度′'分″"秒:\-]/.test(s) || dots>=2){
+    const a = s.split(dots>=2 ? /[^0-9]+/ : /[^0-9.]+/).filter(x=>x!=="").map(Number);
     if(!a.length || a.some(x=>!isFinite(x))) return null;
     d = (a[0]||0) + (a[1]||0)/60 + (a[2]||0)/3600;
   }else{
-    if(!/^\d*\.?\d*$/.test(s)) return null;
+    if(!/^\d*\.?\d*$/.test(s) || s===".") return null;
+    if(S.set.ang!=="packed") return (neg?-1:1)*Number(s);
     const [ip, fp=""] = s.split(".");
     const f = (fp+"0000");
     d = Number(ip||0) + Number(f.slice(0,2))/60 + Number(f.slice(2,4)+"."+(f.slice(4)||"0"))/3600;
@@ -277,8 +287,12 @@ function parseAng(s){
   return neg ? -d : d;
 }
 function norm360(d){ d %= 360; return d<0 ? d+360 : d; }
+// 結果の角度は 度分秒 と 10進数 を並べて出す
 function dms(d, signed){
   if(d==null || !isFinite(d)) return "";
+  return `${dmsOnly(d, signed)}（${(signed?d:Math.abs(d)).toFixed(5)}°）`;
+}
+function dmsOnly(d, signed){
   let sg = d<0 ? "-" : ""; if(!signed && d<0) sg="";
   let t = Math.round(Math.abs(d)*3600);
   const D = Math.floor(t/3600), M = Math.floor(t%3600/60), Sx = t%60;
@@ -744,13 +758,15 @@ document.getElementById("pts").addEventListener("paste", e=>{
 });
 
 /* ---------- 設定 ---------- */
-function stRender(){ $("stOn").value=String(S.set.on); $("stM").value=S.set.m; $("stN").value=S.set.n; stInfo(); }
+function stRender(){ $("stOn").value=String(S.set.on); $("stAng").value=S.set.ang==="packed"?"packed":"dec"; $("stM").value=S.set.m; $("stN").value=S.set.n; stInfo(); }
 function stInfo(){ const h=num($("soOH").value)??0; const k=kGround(h); $("stInfo").innerHTML=`今の倍率（器械点標高 ${f3(h)} m）：現地距離 ＝ 平面距離 × <b>${k.toFixed(7)}</b>（100 m で ${((k-1)*100000).toFixed(1)} mm）`; }
-["stOn","stM","stN"].forEach(id=>$(id).addEventListener("input",()=>{ S.set={on:+$("stOn").value, m:num($("stM").value)??1, n:num($("stN").value)??0}; save(); stInfo(); }));
+["stOn","stM","stN"].forEach(id=>$(id).addEventListener("input",()=>{ S.set={...S.set, on:+$("stOn").value, m:num($("stM").value)??1, n:num($("stN").value)??0}; save(); stInfo(); }));
+function angHelp(){ document.querySelectorAll(".angHelp").forEach(e=>e.textContent = `角度は 度分秒「123 45 30」「123-45-30」「123.45.30」か、${S.set.ang==="packed"?"度.分秒「123.4530」（＝123°45′30″）":"10進数「123.7583」"}で入力。`); }
+$("stAng").onchange = ()=>{ S.set.ang=$("stAng").value; save(); angHelp(); };
 $("stOn").onchange = ()=>{ S.set.on=+$("stOn").value; save(); stInfo(); };
 
 /* ---------- 起動 ---------- */
-function renderAll(){ soCalc(); fsRender(); chRender(); trRender(); invRender(); ptRender(); stRender(); }
+function renderAll(){ angHelp(); soCalc(); fsRender(); chRender(); trRender(); invRender(); ptRender(); stRender(); }
 fillSelects(); soRestore();
 if(S.tab){ const b=document.querySelector(`nav button[data-t="${S.tab}"]`); if(b) b.click(); else renderAll(); } else renderAll();
 </script>
