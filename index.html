@@ -42,9 +42,19 @@ tr.hit td{background:var(--hit)}
 td.r{background:var(--res);text-align:right;font-weight:bold}
 .big{font-size:20px}
 .note{font-size:13px;color:var(--sub)}
+#pick{position:fixed;z-index:50;background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.18);max-height:340px;overflow:auto;min-width:280px;display:none}
+#pick .hd{position:sticky;top:0;background:var(--head);font-size:12px;color:var(--sub);padding:5px 10px}
+#pick .it{padding:7px 10px;cursor:pointer;border-top:1px solid var(--line);line-height:1.3}
+#pick .it b{font-size:15px}
+#pick .it small{display:block;color:var(--sub);font-size:12px;font-variant-numeric:tabular-nums}
+#pick .it.on{background:var(--hit)}
+#pick .it.cur b::after{content:"（今の値）";font-weight:normal;font-size:12px;color:var(--sub)}
+.rowDel{border:0;background:none;color:var(--sub);font-size:16px;padding:0 0 0 4px;cursor:pointer}
 .plan{width:100%;max-width:760px;height:auto;display:block;margin-top:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
 .plan text{font-size:13px;fill:var(--ink);paint-order:stroke;stroke:var(--bg);stroke-width:3px}
-.plan .sub{fill:var(--sub);font-size:11px}
+.plan .sub{fill:var(--sub);font-size:12px}
+.plan .len{font-size:12px;fill:var(--ink)}
+.plan .ang{font-size:12px;font-weight:bold;fill:#c0392b}
 .planKey{font-size:12px;color:var(--sub);margin-top:4px}
 .planKey i{display:inline-block;width:10px;height:10px;margin:0 3px 0 10px;vertical-align:-1px;border-radius:50%}
 .ang3{display:flex;align-items:center;gap:1px;padding-right:4px}
@@ -89,7 +99,7 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
       <button class="btn ghost" id="fsAddRow">行を追加</button>
       <button class="btn ghost" id="fsClear">観測値を消す</button>
     </div>
-    <p class="note">既知座標が入っていて「既知」に印がある行で器械点を求めます。ずれ（mm）が大きい点は印を外すと、その点を除いて計算し直します。<span class="angHelp"></span>目標高は空欄なら 0。</p>
+    <p class="note">既知座標が入っていて「計算に使う」に印がある行で器械点を求めます（座標が入ると自動で印が付きます。既知点が 3 点以上のとき、ずれの大きい点の印を外して除く用）。ずれ（mm）が大きい点は印を外すと、その点を除いて計算し直します。測点名を消すと、座標一覧から入った既知座標も消えます（角度・距離は残ります）。行ごと消すときは # の横の × 。<span class="angHelp"></span>目標高は空欄なら 0。</p>
   </div>
   <div class="card">
     <h2>結果</h2>
@@ -362,8 +372,7 @@ function findPt(name){ name = String(name??"").trim(); return name ? S.pts.find(
 function fillSelects(){
   const opts = `<option value="">（直接入力）</option>` + S.pts.map(p=>`<option>${esc(p.n)}</option>`).join("");
   document.querySelectorAll("select.ptsel").forEach(sel=>{ const v=sel.value; sel.innerHTML=opts; sel.value=v; });
-  let dl = $("ptlist"); if(!dl){ dl=document.createElement("datalist"); dl.id="ptlist"; document.body.appendChild(dl); }
-  dl.innerHTML = S.pts.map(p=>`<option value="${esc(p.n)}">`).join("");
+
 }
 document.addEventListener("change", e=>{ if(e.target.classList.contains("num")){ const v=z2h(e.target.value); if(v!==e.target.value) e.target.value=v; } }, true);
 
@@ -449,32 +458,143 @@ function addPts(list, note){
   list.forEach(p=>upsertPt({...p, note})); alert(`${list.length} 点を座標一覧に入れました。`); return true;
 }
 
+/* ---------- 測点名の選択欄 ---------- */
+// 欄に入ったときは全部の点を出す（今の値に印）。打つと、その文字を含む点に絞る（No.1・NO1・№1 は同じに扱う）
+const pickNorm = v => z2h(v).toLowerCase().replace(/№/g,"no").replace(/[\s.．・\-_]/g,"");
+const pick = document.createElement("div"); pick.id="pick"; document.body.appendChild(pick);
+let pickIn=null, pickAct=-1, pickList=[], pickTouch=false;
+function pickShow(inp, typed){
+  pickIn=inp; const q=typed ? pickNorm(inp.value) : "";
+  pickList = q ? S.pts.filter(p=>pickNorm(p.n).includes(q)) : S.pts.slice();
+  if(!S.pts.length){ pickHide(); return; }
+  const cur=pickNorm(inp.value);
+  pickAct = pickList.findIndex(p=>pickNorm(p.n)===cur);
+  pick.innerHTML = `<div class="hd">${q ? `「${esc(inp.value)}」を含む点 ${pickList.length} / ${S.pts.length}` : `座標一覧 ${S.pts.length} 点（打つと絞り込み）`}</div>` +
+    (pickList.length ? pickList.map((p,i)=>`<div class="it${i===pickAct?" on":""}${pickNorm(p.n)===cur?" cur":""}" data-i="${i}"><b>${esc(p.n)}</b><small>X ${f3(p.x)}　Y ${f3(p.y)}　高さ ${p.h!=null&&p.h!==""?f3(+p.h):"—"}${p.note?`　${esc(p.note)}`:""}</small></div>`).join("")
+      : `<div class="it" style="cursor:default;color:var(--sub)">合う点がありません（座標一覧に無い名前は新点になります）</div>`);
+  const r=inp.getBoundingClientRect(), below=innerHeight-r.bottom;
+  pick.style.display="block"; pick.style.left=Math.min(r.left, innerWidth-pick.offsetWidth-8)+"px";
+  if(below<220 && r.top>below){ pick.style.top=""; pick.style.bottom=(innerHeight-r.top+2)+"px"; pick.style.maxHeight=Math.min(340,r.top-12)+"px"; }
+  else { pick.style.bottom=""; pick.style.top=(r.bottom+2)+"px"; pick.style.maxHeight=Math.min(340,below-12)+"px"; }
+  pickScroll();
+}
+// 一覧の中だけを動かす（scrollIntoView はページまで動かしてしまう）
+function pickScroll(){
+  const e=pick.querySelector(".it.on"); if(!e) return;
+  const hd=pick.querySelector(".hd").offsetHeight;
+  if(e.offsetTop-hd < pick.scrollTop) pick.scrollTop=e.offsetTop-hd;
+  else if(e.offsetTop+e.offsetHeight > pick.scrollTop+pick.clientHeight) pick.scrollTop=e.offsetTop+e.offsetHeight-pick.clientHeight;
+}
+function pickHide(){ pick.style.display="none"; pickIn=null; pickTouch=false; }
+function pickSet(i){
+  const p=pickList[i], inp=pickIn; if(!p || !inp) return;
+  inp.value=p.n; pickHide();
+  inp.dispatchEvent(new Event("input",{bubbles:true})); inp.dispatchEvent(new Event("change",{bubbles:true}));
+}
+function pickMove(d){
+  if(!pickList.length) return; pickAct=(pickAct+d+pickList.length)%pickList.length;
+  pick.querySelectorAll(".it").forEach((e,i)=>e.classList.toggle("on", i===pickAct));
+  pickScroll();
+}
+document.addEventListener("focusin", e=>{ if(e.target.dataset?.pick) pickShow(e.target, false); });
+document.addEventListener("input", e=>{ if(e.target.dataset?.pick && e.isTrusted!==false && e.target===pickIn) pickShow(e.target, true); });
+document.addEventListener("click", e=>{ if(e.target.dataset?.pick && pick.style.display==="none") pickShow(e.target, false); });
+// 指で一覧をなぞっている間（iPad）は閉じない。一覧の外を触ったら閉じる
+document.addEventListener("focusout", e=>{ if(e.target===pickIn) setTimeout(()=>{ if(!pickTouch && document.activeElement!==pickIn) pickHide(); }, 150); });
+document.addEventListener("pointerdown", e=>{ if(pickIn && !pick.contains(e.target) && e.target!==pickIn) pickHide(); }, true);
+document.addEventListener("keydown", e=>{
+  if(!pickIn || e.target!==pickIn || pick.style.display==="none") return;
+  if(e.key==="ArrowDown"){ e.preventDefault(); pickMove(1); }
+  else if(e.key==="ArrowUp"){ e.preventDefault(); pickMove(-1); }
+  else if(e.key==="Enter" && pickAct>=0){ e.preventDefault(); pickSet(pickAct); }
+  else if(e.key==="Escape") pickHide();
+});
+pick.addEventListener("pointerdown", e=>{ pickTouch=true; if(e.pointerType==="mouse") e.preventDefault(); });
+pick.addEventListener("click", e=>{ const it=e.target.closest(".it[data-i]"); if(it) pickSet(+it.dataset.i); });
+addEventListener("scroll", e=>{ if(pickIn && e.target!==pick) pickHide(); }, true);
+
+/* ---------- 表の入力：Enter で次の欄へ ---------- */
+document.addEventListener("keydown", e=>{
+  const t=e.target; if(e.key!=="Enter" || e.isComposing || t.tagName!=="INPUT" || t.type==="checkbox" || !t.closest("td")) return;
+  if(t===pickIn && pick.style.display!=="none" && pickAct>=0) return;   // 一覧で選んでいるときは選ぶ方
+  const all=[...t.closest("table").querySelectorAll('input:not([type="checkbox"]):not([disabled])')];
+  const nx=all[all.indexOf(t)+(e.shiftKey?-1:1)]; if(!nx) return;
+  e.preventDefault(); pickHide(); nx.focus(); nx.select();
+});
+
 /* ---------- 位置図 ---------- */
 // pts: {x,y,n,k}  k = st（器械点）/ known（既知点）/ off（印を外した既知点）/ new（新点）
 const PLAN_COL = {st:"#d64545", known:"var(--acc)", off:"#9aa3b2", new:"#2e9b4a"};
-function planSvg(pts, st){
-  const W=640, H=420, pad=46;
+// 三角形の一覧。[器械点, 既知点A, 既知点B] の組
+function planTris(pts, st){
+  const kn=pts.filter(p=>p.k==="known").sort((a,b)=>azimuth(st.x,st.y,a.x,a.y)-azimuth(st.x,st.y,b.x,b.y));
+  if(kn.length<2) return [];
+  const t=[]; for(let i=0;i<kn.length-1;i++) t.push([st,kn[i],kn[i+1]]);
+  if(kn.length>2){ const a=kn[kn.length-1], b=kn[0]; if(norm360(azimuth(st.x,st.y,b.x,b.y)-azimuth(st.x,st.y,a.x,a.y))<180) t.push([st,a,b]); }
+  return t;
+}
+const triLen=(a,b)=>Math.hypot(a.x-b.x, a.y-b.y);
+function triAng(v,a,b){ const d=Math.abs(azimuth(v.x,v.y,a.x,a.y)-azimuth(v.x,v.y,b.x,b.y)); return d>180?360-d:d; }
+// 図の下の表：三角形ごとに 点（座標・内角）と 辺長
+function triTable(pts, st){
+  return planTris(pts, st).map(t=>{
+    const [A,B,C]=t, nm=p=>esc(p.n||"");
+    return `<div class="scroll" style="margin-top:10px;max-width:760px"><table>
+      <tr><th colspan="5" style="text-align:left">三角形 ${nm(A)}・${nm(B)}・${nm(C)}</th></tr>
+      <tr><th>測点名</th><th>X</th><th>Y</th><th>標高</th><th>内角</th></tr>
+      ${t.map((v,i)=>{ const o=t.filter((_,j)=>j!==i); return `<tr><td>${nm(v)}</td><td class="n">${f3(v.x)}</td><td class="n">${f3(v.y)}</td><td class="n">${v.h!=null?f3(v.h):""}</td><td class="n">${dmsOnly(triAng(v,o[0],o[1]))}</td></tr>`; }).join("")}
+      <tr><th>辺</th><th colspan="4" style="text-align:left">長さ（平面距離・座標から）</th></tr>
+      ${[[A,B],[A,C],[B,C]].map(([u,v])=>`<tr><td>${nm(u)} – ${nm(v)}</td><td class="n" colspan="4" style="text-align:left">${f3(triLen(u,v))} m</td></tr>`).join("")}
+    </table></div>`;
+  }).join("");
+}
+// 図は表示する幅そのままの大きさで描く（縮めると字が小さくなるので）
+function planSvg(pts, st, box){
+  const W=Math.max(340, Math.min(760, box?.clientWidth||680)), H=W<520?520:480, pad=W<520?40:70, room=Math.min(180, W*0.3);
   const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
   const xmin=Math.min(...xs), xmax=Math.max(...xs), ymin=Math.min(...ys), ymax=Math.max(...ys);
   const span=Math.max(xmax-xmin, ymax-ymin, 1);
-  const k=Math.min((W-2*pad)/Math.max(ymax-ymin, span*0.2), (H-2*pad)/Math.max(xmax-xmin, span*0.2));
+  const k=Math.min((W-2*pad-room)/Math.max(ymax-ymin, span*0.2), (H-2*pad)/Math.max(xmax-xmin, span*0.2));
   const cx=(ymin+ymax)/2, cy=(xmin+xmax)/2;
   const P=p=>[W/2+(p.y-cx)*k, H/2-(p.x-cy)*k];
   let g="";
+  // 三角形の辺の長さと内角（器械点からの辺も座標から出した長さ）
+  const tris=planTris(pts, st), done=new Set();
+  tris.forEach(t=>{
+    const c=P({x:avg(t.map(v=>v.x)), y:avg(t.map(v=>v.y))});
+    [[t[1],t[2]]].forEach(([p,q])=>{ const [x1,y1]=P(p), [x2,y2]=P(q); g+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--sub)" stroke-width="1.2"/>`; });
+    [[t[0],t[1]],[t[0],t[2]],[t[1],t[2]]].forEach(([p,q])=>{
+      const key=[p.n,q.n].sort().join("|"); if(done.has(key)) return; done.add(key);
+      const [x1,y1]=P(p), [x2,y2]=P(q), mx=(x1+x2)/2, my=(y1+y2)/2;
+      if(Math.hypot(x2-x1,y2-y1)<60) return;   // 図で短い辺は字が重なるので、下の表だけに出す
+      let nx=-(y2-y1), ny=x2-x1; const l=Math.hypot(nx,ny)||1; nx/=l; ny/=l;
+      if(nx*(mx-c[0])+ny*(my-c[1])<0){ nx=-nx; ny=-ny; }   // 三角形の外側へずらす
+      g+=`<text class="len" x="${mx+nx*14}" y="${my+ny*14+4}" text-anchor="middle">${f3(triLen(p,q))} m</text>`;
+    });
+    t.forEach((v,i)=>{ const o=t.filter((_,j)=>j!==i); (v.angs ??= []).push(dmsOnly(triAng(v,o[0],o[1]))); });
+  });
   // 視準線（器械点 → 各点）
   pts.filter(p=>p!==st).forEach(p=>{
     const [x1,y1]=P(st), [x2,y2]=P(p);
     g+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${PLAN_COL[p.k]}" stroke-width="1.5" stroke-dasharray="6 4" opacity=".8"/>`;
   });
-  // 点と名前（器械点以外は名前の下に器械点からの平面距離）
+  // 点と説明（名前・座標・高さ・観測値）。近い点の説明が重ならないよう、左右に振り分ける
+  let side=1;
   pts.forEach(p=>{
     const [x,y]=P(p), c=PLAN_COL[p.k];
     g+= p.k==="st" ? `<circle cx="${x}" cy="${y}" r="9" fill="none" stroke="${c}" stroke-width="2"/><circle cx="${x}" cy="${y}" r="4" fill="${c}"/>`
       : p.k==="new" ? `<circle cx="${x}" cy="${y}" r="6" fill="${c}"/>`
       : `<path d="M${x} ${y-8}L${x+7} ${y+5}L${x-7} ${y+5}Z" fill="${c}"/>`;
-    const right = x < W-90;
-    g+=`<text x="${x+(right?12:-12)}" y="${y-8}" text-anchor="${right?"start":"end"}" font-weight="${p.k==="st"?"bold":"normal"}">${esc(p.n||"")}</text>`;
-    if(p!==st) g+=`<text class="sub" x="${x+(right?12:-12)}" y="${y+7}" text-anchor="${right?"start":"end"}">${Math.hypot(p.x-st.x, p.y-st.y).toFixed(2)} m</text>`;
+    let right = p===st ? x < W/2+40 : side>0;
+    if(x > W-room) right=false; if(x < room) right=true;
+    if(p!==st) side=-side;
+    const tx=x+(right?13:-13), an=right?"start":"end";
+    const lines=[`X ${f3(p.x)}　Y ${f3(p.y)}`];
+    if(p.h!=null) lines.push(`H ${f3(p.h)}`);
+    const angT = p.angs ? `内角 ${p.angs.join("・")}` : "";
+    g+=`<text x="${tx}" y="${y-6}" text-anchor="${an}" font-weight="bold">${esc(p.n||"")}</text>` +
+      lines.map((t,i)=>`<text class="sub" x="${tx}" y="${y+8+i*13}" text-anchor="${an}">${t}</text>`).join("") +
+      (angT ? `<text class="ang" x="${tx}" y="${y+8+lines.length*13}" text-anchor="${an}">${angT}</text>` : "");
   });
   // 方位（北）と縮尺
   g+=`<g transform="translate(${W-28},34)"><path d="M0 -18L7 6L0 1L-7 6Z" fill="var(--ink)"/><text x="0" y="22" text-anchor="middle" class="sub">北(X)</text></g>`;
@@ -484,7 +604,7 @@ function planSvg(pts, st){
 }
 function planKey(ks){
   const name={st:"器械点", known:"既知点（計算に使用）", off:"既知点（印を外した点）", new:"新点"};
-  return `<div class="planKey">${ks.map(k=>`<i style="background:${PLAN_COL[k]}"></i>${name[k]}`).join("")}　点線＝器械点からの視準（名前の下の数字は器械点からの平面距離）</div>`;
+  return `<div class="planKey">${ks.map(k=>`<i style="background:${PLAN_COL[k]}"></i>${name[k]}`).join("")}　点線＝器械点からの視準　実線＝既知点どうし　赤＝三角形の内角　長さ＝座標から出した平面距離</div>`;
 }
 
 /* ---------- 器械点を求める ---------- */
@@ -495,16 +615,24 @@ function fsEnsure(){ while(S.fs.rows.length<6) S.fs.rows.push({}); }
 function fsRender(){
   fsEnsure();
   ["fsN","fsI","fsDist"].forEach(id=>{ if(S.fs[id]!=null) $(id).value=S.fs[id]; });
-  $("fsTable").innerHTML = `<tr><th>#</th><th>既知</th>${fsCols.map(c=>`<th>${c[1]}</th>`).join("")}<th>求めた X</th><th>求めた Y</th><th>求めた 標高</th><th>ずれ 水平(mm)</th><th>ずれ 高さ(mm)</th></tr>` +
-    S.fs.rows.map((r,k)=>`<tr><td>${k+1}</td><td style="text-align:center"><input type="checkbox" class="chk" data-k="${k}" data-c="use"></td>${fsCols.map(c=>`<td class="${c[0]==="n"?"":"n"}">${c[0]==="ha"||c[0]==="za"?angCell(k,c[0],r[c[0]]):`<input data-k="${k}" data-c="${c[0]}" value="${esc(r[c[0]]??"")}" ${c[0]==="n"?'list="ptlist"':'inputmode="decimal"'} style="width:${c[2]}px">`}</td>`).join("")}${["X","Y","H","E","V"].map(c=>`<td class="${"XYH".includes(c)?"r":"n"}" id="fs${c}${k}"></td>`).join("")}</tr>`).join("");
+  $("fsTable").innerHTML = `<tr><th>#</th><th title="印を外すと、その既知点を除いて計算します（3点以上のとき、ずれの大きい点を外す用）">計算に<br>使う</th>${fsCols.map(c=>`<th>${c[1]}</th>`).join("")}<th>求めた X</th><th>求めた Y</th><th>求めた 標高</th><th>ずれ 水平(mm)</th><th>ずれ 高さ(mm)</th></tr>` +
+    S.fs.rows.map((r,k)=>`<tr><td>${k+1}<button class="rowDel" data-del="${k}" title="この行を消す" aria-label="${k+1}行目を消す">×</button></td><td style="text-align:center"><input type="checkbox" class="chk" data-k="${k}" data-c="use"></td>${fsCols.map(c=>`<td class="${c[0]==="n"?"":"n"}">${c[0]==="ha"||c[0]==="za"?angCell(k,c[0],r[c[0]]):`<input data-k="${k}" data-c="${c[0]}" value="${esc(r[c[0]]??"")}" ${c[0]==="n"?'data-pick="1" autocomplete="off"':'inputmode="decimal"'} style="width:${c[2]}px">`}</td>`).join("")}${["X","Y","H","E","V"].map(c=>`<td class="${"XYH".includes(c)?"r":"n"}" id="fs${c}${k}"></td>`).join("")}</tr>`).join("");
   fsCalc();
 }
 $("fsTable").addEventListener("input", e=>{
   const t=e.target; if(t.dataset.k==null || t.dataset.c==="use") return; const r=S.fs.rows[t.dataset.k];
   r[t.dataset.c]=t.dataset.p ? angVal(t) : t.value;
-  if(t.dataset.c==="n"){ const p=findPt(t.value); if(p && p.x!=null){ r.kx=String(p.x); r.ky=String(p.y); r.kh=p.h==null?"":String(p.h); delete r.use;
-    const tr=t.closest("tr"); ["kx","ky","kh"].forEach(c=>tr.querySelector(`[data-c="${c}"]`).value=r[c]); } }
+  // 測点名を変えたら既知座標も付け替える。座標一覧から入れた座標は、名前を消す・一覧に無い名前にすると消す（手で入れた座標は残す）
+  if(t.dataset.c==="n"){ const p=findPt(t.value), auto=r.auto && r.kx===String(r.auto.x) && r.ky===String(r.auto.y);
+    if(p && p.x!=null){ r.kx=String(p.x); r.ky=String(p.y); r.kh=p.h==null?"":String(p.h); r.auto={x:p.x, y:p.y}; delete r.use; }
+    else if(auto){ r.kx=r.ky=r.kh=""; delete r.auto; delete r.use; }
+    const tr=t.closest("tr"); ["kx","ky","kh"].forEach(c=>tr.querySelector(`[data-c="${c}"]`).value=r[c]??""); }
   save(); fsCalc();
+});
+$("fsTable").addEventListener("click", e=>{
+  const k=e.target.dataset?.del; if(k==null) return;
+  const r=S.fs.rows[k]; if(Object.values(r).some(v=>v!=="" && v!=null) && !confirm(`${+k+1} 行目を消しますか？`)) return;
+  S.fs.rows.splice(k,1); save(); fsRender();
 });
 $("fsTable").addEventListener("change", e=>{
   const t=e.target; if(t.dataset.k==null) return; const r=S.fs.rows[t.dataset.k];
@@ -544,6 +672,14 @@ function fsCalc(){
   const hs=known.filter(w=>w.p.h!=null).map(w=>w.p.h), kg=kGround(hs.length?avg(hs):0);
   const loc=w=>{ const s=w.o.hg/kg; return {u:s*Math.cos(rad(w.o.ha)), v:s*Math.sin(rad(w.o.ha))}; };
   known.forEach(w=>w.l=loc(w));
+  const dupP=[], dupO=[];
+  known.forEach((w,i)=>known.slice(i+1).forEach(v=>{
+    if(Math.hypot(w.p.x-v.p.x, w.p.y-v.p.y)<0.001) dupP.push(`${w.k+1}・${v.k+1}`);
+    if(Math.hypot(w.l.u-v.l.u, w.l.v-v.l.v)<0.001) dupO.push(`${w.k+1}・${v.k+1}`);
+  }));
+  if(dupP.length || dupO.length){ res.innerHTML = `<span class="warn">計算できません。` +
+    (dupP.length ? `${dupP.join("、")} 行目の既知座標が同じです（同じ点を2回入れていませんか）。` : "") +
+    (dupO.length ? `${dupO.join("、")} 行目の水平角・距離が同じです。` : "") + `入れ直すか、片方の「計算に使う」の印を外してください。</span>`; return; }
   const um=avg(known.map(w=>w.l.u)), vm=avg(known.map(w=>w.l.v)), Xm=avg(known.map(w=>w.p.x)), Ym=avg(known.map(w=>w.p.y));
   let a=0, b=0, q=0;
   known.forEach(w=>{ const du=w.l.u-um, dv=w.l.v-vm, dX=w.p.x-Xm, dY=w.p.y-Ym; a+=du*dX+dv*dY; b+=du*dY-dv*dX; q+=du*du+dv*dv; });
@@ -569,13 +705,16 @@ function fsCalc(){
   });
   const st={n:name, x:+X0.toFixed(3), y:+Y0.toFixed(3), h:H0==null?null:+H0.toFixed(3)};
   fsOut={st, i, pts, news};
-  const plan=[{...st, k:"st"}, ...all.map(w=>{ const P=toXY(w.l||loc(w)); return w.p ? {n:w.n||`${w.k+1}行目`, x:w.p.x, y:w.p.y, k:w.use?"known":"off"} : {n:w.n||`${w.k+1}行目`, x:P.x, y:P.y, k:"new"}; })];
-  $("fsPlot").innerHTML = planSvg(plan, plan[0]) + planKey(["st","known",...(plan.some(p=>p.k==="off")?["off"]:[]),...(news.length||plan.some(p=>p.k==="new")?["new"]:[])]);
+  const plan=[{...st, k:"st"}, ...all.map(w=>{ const P=toXY(w.l||loc(w)); const ob={ha:w.o.ha, d:num(S.fs.rows[w.k].d)};
+    return w.p ? {n:w.n||`${w.k+1}行目`, x:w.p.x, y:w.p.y, h:w.p.h, k:w.use?"known":"off", ...ob} : {n:w.n||`${w.k+1}行目`, x:P.x, y:P.y, h:(news.find(q=>q.n===w.n)||{}).h??null, k:"new", ...ob}; })];
+  $("fsPlot").innerHTML = planSvg(plan, plan[0], $("fsPlot")) + planKey(["st","known",...(plan.some(p=>p.k==="off")?["off"]:[]),...(news.length||plan.some(p=>p.k==="new")?["new"]:[])]);
+  $("fsPlot").innerHTML += triTable(plan, plan[0]);
   const scale=Math.hypot(a,b)/q;
   res.innerHTML = `<div class="kv big"><span>${esc(name)} X</span><b>${f3(X0)}</b><span>${esc(name)} Y</span><b>${f3(Y0)}</b><span>${esc(name)} 標高</span><b>${H0!=null?f3(H0):"—（既知点の標高と天頂角が要ります）"}</b></div>
     <div class="note">使った既知点 ${known.length} 点　水平のずれ（二乗平均）${Math.sqrt(se/known.length).toFixed(0)} mm　水平角 0° の方向角 ${dms(norm360(deg(th)))}<br>距離の縮尺のずれ（参考）${((scale-1)*1e6).toFixed(0)} ppm　…数百 ppm 以上なら距離の入力か設定の補正を確認${hk.length>1?`<br>標高のばらつき ${((Math.max(...hk)-Math.min(...hk))*1000).toFixed(0)} mm（${hk.length} 点）`:""}</div>` +
     (news.length ? `<div class="note" style="margin-top:6px">新点：${news.map(p=>`${esc(p.n)}（X ${f3(p.x)}・Y ${f3(p.y)}${p.h!=null?`・H ${f3(p.h)}`:""}）`).join("　")}</div>` : "");
 }
+let fsResizeT; addEventListener("resize", ()=>{ clearTimeout(fsResizeT); fsResizeT=setTimeout(()=>{ if($("fsPlot").innerHTML) fsCalc(); }, 200); });
 $("fsBack").onchange = ()=>{ S.fs.back=$("fsBack").value; save(); };
 $("fsAddRow").onclick = ()=>{ S.fs.rows.push({}); save(); fsRender(); };
 $("fsClear").onclick = ()=>{ if(confirm("観測値を全部消しますか？")){ S.fs.rows=[]; save(); fsRender(); } };
@@ -721,7 +860,7 @@ function invEnsure(){ while(S.inv.rows.length<6) S.inv.rows.push({}); }
 function invRender(){
   invEnsure();
   $("invTable").innerHTML = `<tr><th>#</th><th>測点名</th><th>X</th><th>Y</th><th>高さ</th><th>方向角</th><th>平面距離</th><th>現地距離</th><th>ΔX</th><th>ΔY</th><th>高低差</th><th>勾配</th></tr>` +
-    S.inv.rows.map((r,k)=>`<tr><td>${k+1}</td><td><input list="ptlist" data-k="${k}" data-c="n" value="${esc(r.n??"")}" style="width:120px"></td>${["x","y","h"].map(c=>`<td class="n"><input data-k="${k}" data-c="${c}" value="${esc(r[c]??"")}" inputmode="decimal" style="width:${c==="h"?80:115}px"></td>`).join("")}${["Az","Sp","Sg","DX","DY","DH","G"].map(c=>`<td class="${c==="Az"||c==="Sp"||c==="Sg"?"r":"n"}" id="iv${c}${k}"></td>`).join("")}</tr>`).join("");
+    S.inv.rows.map((r,k)=>`<tr><td>${k+1}</td><td><input data-pick="1" autocomplete="off" data-k="${k}" data-c="n" value="${esc(r.n??"")}" style="width:120px"></td>${["x","y","h"].map(c=>`<td class="n"><input data-k="${k}" data-c="${c}" value="${esc(r[c]??"")}" inputmode="decimal" style="width:${c==="h"?80:115}px"></td>`).join("")}${["Az","Sp","Sg","DX","DY","DH","G"].map(c=>`<td class="${c==="Az"||c==="Sp"||c==="Sg"?"r":"n"}" id="iv${c}${k}"></td>`).join("")}</tr>`).join("");
   invCalc();
 }
 $("invTable").addEventListener("input", e=>{
