@@ -51,7 +51,9 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
 <header>
   <h1>測設計算<small>阿久和南・平面直角座標 第Ⅸ系</small></h1>
   <nav id="tabs">
+    <button data-t="fs">器械点を求める</button>
     <button data-t="sokusetsu" class="on">測設</button>
+    <button data-t="ch">丁張</button>
     <button data-t="trav">観測→座標</button>
     <button data-t="inv">逆トラバース</button>
     <button data-t="pts">座標一覧</button>
@@ -59,6 +61,37 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
   </nav>
 </header>
 <main>
+
+<!-- 器械点を求める（自由に据えた器械点の座標を、既知点の観測から出す） -->
+<section id="fs">
+  <div class="card">
+    <h2>器械点（座標が分からない点）を、既知点を測った値から求める</h2>
+    <div class="grid">
+      <div><label>器械点の名前</label><input id="fsN" placeholder="T3"></div>
+      <div><label>器械高</label><input id="fsI" inputmode="decimal" class="num" placeholder="0"></div>
+      <div><label>距離の種類</label><select id="fsDist"><option value="slope">斜距離（天頂角で水平に直す）</option><option value="horiz">水平距離</option></select></div>
+    </div>
+    <p class="note">既知点の座標（X・Y・標高）を表に入れ、器械点からその点を測った水平角・天頂角・距離を入れると、器械点の X・Y・標高が出ます。既知点は 2 点で足ります（3 点以上あれば、ずれも確かめられます）。測点名に座標一覧の点名を入れると座標が自動で入ります。水平角は最初に向けた点（後視）を 0° にした値をそのまま入れてください。どの点を 0° にしても計算は同じです。<br>既知座標を空欄にした点（T2 など）は「新点」として、求めた器械点から座標を出します。</p>
+  </div>
+  <div class="card">
+    <h2>観測値</h2>
+    <div class="scroll"><table id="fsTable"></table></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn ghost" id="fsAddRow">行を追加</button>
+      <button class="btn ghost" id="fsClear">観測値を消す</button>
+    </div>
+    <p class="note">既知座標が入っていて「既知」に印がある行で器械点を求めます。ずれ（mm）が大きい点は印を外すと、その点を除いて計算し直します。角度は 123.4530（＝123°45′30″）か「123 45 30」。目標高は空欄なら 0。</p>
+  </div>
+  <div class="card">
+    <h2>結果</h2>
+    <div id="fsRes"></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" id="fsSave">器械点と新点を座標一覧に追加</button>
+      <select id="fsBack" style="max-width:200px"></select>
+      <button class="btn ghost" id="fsGo">この器械点・後視点で測設へ</button>
+    </div>
+  </div>
+</section>
 
 <!-- 測設 -->
 <section id="sokusetsu" class="on">
@@ -97,6 +130,40 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
     </div>
     <div class="scroll"><table id="soTable"></table></div>
     <p class="note">水平角＝後視点を 0°00′00″ にして右回り。鉛直角＝天頂角（真上 0°・水平 90°）。<br>現地距離＝平面距離 ÷ 縮尺係数 ×（地球半径＋楕円体高）÷ 地球半径（設定タブで切替）。</p>
+  </div>
+</section>
+
+<!-- 丁張 -->
+<section id="ch">
+  <div class="card">
+    <h2>丁張の条件（工程ごとに覚えます）</h2>
+    <div class="grid">
+      <div><label>工程</label><select id="chStep"><option>切土</option><option>床付</option><option>基礎</option><option>石積み</option></select></div>
+      <div><label>基準線 始点</label><select id="chA" class="ptsel"></select></div>
+      <div><label>基準線 終点</label><select id="chB" class="ptsel"></select></div>
+      <div><label>始点の高さ</label><input id="chHA" inputmode="decimal" class="num"></div>
+      <div><label>終点の高さ</label><input id="chHB" inputmode="decimal" class="num"></div>
+      <div><label>山側（始点→終点を見て）</label><select id="chSide"><option value="L">左</option><option value="R">右</option></select></div>
+      <div><label>勾配 1 :</label><input id="chN" inputmode="decimal" class="num" placeholder="空欄＝勾配なし"></div>
+      <div><label>縦断勾配 %（終点の高さが空欄のとき）</label><input id="chG" inputmode="decimal" class="num" placeholder="例 0.3333"></div>
+      <div><label>基準線から床付までの高さ</label><input id="chD" inputmode="decimal" class="num" placeholder="例 4.867"></div>
+    </div>
+    <div id="chInfo" class="note" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <h2>杭ごとの値</h2>
+    <div class="scroll"><table id="chTable"></table></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn ghost" id="chAddRow">行を追加</button>
+      <button class="btn" id="chSave">杭を座標一覧に追加</button>
+      <button class="btn ghost" id="chClear">この工程の杭を消す</button>
+    </div>
+    <p class="note">基準線＝のり面の上にある線（切土なら のり肩線 か のり尻線、石積みなら 前面の下端）。のり面は基準線から山側へ 1:n で上がるとして計算します。高さは始点〜終点の間を直線で割り振ります。<br>
+    杭＝基準線から山側へ「離れ」だけ水平に出した位置。水平角・水平距離は測設タブの器械点・後視点・目標高で出します。<br>
+    杭天：打った杭の天端を測った標高。貫の高さを空欄にすると杭天の高さで計算します（杭測量.xlsx の「1.0m＋0.408×（天端−杭天）」と同じ）。<br>
+    貫の高さ：杭に水平貫を打つ高さ（標高）。天頂角・斜距離はその高さを視準する値（目標高 0）なので、杭の面に視準線の高さで印を付けます。<br>
+    「杭→のり面」：水平貫の上で、杭から谷側へこの長さの所を のり面（設計の線）が通ります。そこから勾配の角度で斜め貫（法貫）を下げて付けます。マイナスなら のり面が杭より山側を通ります（杭がのり面の中に入っている）。<br>
+    床付の高さ＝基準線の高さ − 「基準線から床付までの高さ」。法長＝貫の高さから床付までの のり面に沿った長さ（√(1＋n²)×高さ）。</p>
   </div>
 </section>
 
@@ -181,6 +248,8 @@ const KEY = "sokusetsu_akuwaminami_v1";
 
 /* ---------- 保存 ---------- */
 let S = load();
+S.fs ??= {rows:[]};
+S.ch ??= {step:"切土", steps:{}};
 function load(){
   try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && s.pts) return s; }catch(e){}
   return {pts: DEFAULT_PTS.map(p=>({...p})), set:{...DEFAULT_SET}, so:{}, tr:{rows:[]}, inv:{rows:[]}};
@@ -313,6 +382,187 @@ $("soPAdd").onclick = ()=>{
   upsertPt({n,x,y,h,note:"測設画面で追加"}); alert(`「${n}」を座標一覧に入れました。`);
 };
 function upsertPt(p){ const q=findPt(p.n); if(q) Object.assign(q,p); else S.pts.push(p); save(); fillSelects(); }
+const avg = a => a.reduce((s,v)=>s+v,0)/a.length;
+function addPts(list, note){
+  const dup = list.filter(p=>findPt(p.n)).map(p=>p.n);
+  if(dup.length && !confirm(`次の点はもうあります。上書きしますか？\n${dup.join("、")}`)) return false;
+  list.forEach(p=>upsertPt({...p, note})); alert(`${list.length} 点を座標一覧に入れました。`); return true;
+}
+
+/* ---------- 器械点を求める ---------- */
+// 既知点への 水平角・距離 から、器械点の座標と水平角 0° の向きを最小二乗で求める（縮尺は設定の補正で固定）
+const fsCols = [["n","測点名",100],["kx","既知 X",115],["ky","既知 Y",115],["kh","既知 標高",85],["ha","水平角",110],["za","鉛直角(天頂角)",110],["d","距離",90],["t","目標高",70]];
+function fsEnsure(){ while(S.fs.rows.length<6) S.fs.rows.push({}); }
+["fsN","fsI","fsDist"].forEach(id=>["input","change"].forEach(ev=>$(id).addEventListener(ev,()=>{ S.fs[id]=$(id).value; save(); fsCalc(); })));
+function fsRender(){
+  fsEnsure();
+  ["fsN","fsI","fsDist"].forEach(id=>{ if(S.fs[id]!=null) $(id).value=S.fs[id]; });
+  $("fsTable").innerHTML = `<tr><th>#</th><th>既知</th>${fsCols.map(c=>`<th>${c[1]}</th>`).join("")}<th>求めた X</th><th>求めた Y</th><th>求めた 標高</th><th>ずれ 水平(mm)</th><th>ずれ 高さ(mm)</th></tr>` +
+    S.fs.rows.map((r,k)=>`<tr><td>${k+1}</td><td style="text-align:center"><input type="checkbox" class="chk" data-k="${k}" data-c="use"></td>${fsCols.map(c=>`<td class="${c[0]==="n"?"":"n"}"><input data-k="${k}" data-c="${c[0]}" value="${esc(r[c[0]]??"")}" ${c[0]==="n"?'list="ptlist"':'inputmode="decimal"'} style="width:${c[2]}px"></td>`).join("")}${["X","Y","H","E","V"].map(c=>`<td class="${"XYH".includes(c)?"r":"n"}" id="fs${c}${k}"></td>`).join("")}</tr>`).join("");
+  fsCalc();
+}
+$("fsTable").addEventListener("input", e=>{
+  const t=e.target; if(t.dataset.k==null || t.dataset.c==="use") return; const r=S.fs.rows[t.dataset.k];
+  r[t.dataset.c]=t.value;
+  if(t.dataset.c==="n"){ const p=findPt(t.value); if(p && p.x!=null){ r.kx=String(p.x); r.ky=String(p.y); r.kh=p.h==null?"":String(p.h); delete r.use;
+    const tr=t.closest("tr"); ["kx","ky","kh"].forEach(c=>tr.querySelector(`[data-c="${c}"]`).value=r[c]); } }
+  save(); fsCalc();
+});
+$("fsTable").addEventListener("change", e=>{
+  const t=e.target; if(t.dataset.k==null) return; const r=S.fs.rows[t.dataset.k];
+  if(t.dataset.c==="use") r.use=t.checked; else if(t.dataset.c!=="n"){ t.value=z2h(t.value); r[t.dataset.c]=t.value; }
+  save(); fsCalc();
+});
+// 観測1行 → 水平角・水平距離（現地）・視準軸から目標までの高低差
+function fsObs(r, slope){
+  const ha=parseAng(r.ha), za=parseAng(r.za), d=num(r.d);
+  if(ha==null || d==null || (slope && za==null)) return null;
+  const hg = slope ? d*Math.sin(rad(za)) : d;
+  const vd = za==null ? null : slope ? d*Math.cos(rad(za)) : hg/Math.tan(rad(za));
+  return {ha, hg, vd, t:num(r.t)??0};
+}
+let fsOut = null;
+function fsCalc(){
+  fsOut = null;
+  const slope=$("fsDist").value==="slope", i=num($("fsI").value)??0, name=$("fsN").value.trim()||"器械点";
+  const all=[];
+  S.fs.rows.forEach((r,k)=>{
+    const c=id=>$("fs"+id+k); ["X","Y","H","E","V"].forEach(id=>c(id).textContent="");
+    const p={x:num(r.kx), y:num(r.ky), h:num(r.kh)}, cb=$("fsTable").querySelector(`input[data-c="use"][data-k="${k}"]`);
+    const isKnown = p.x!=null && p.y!=null;
+    const use = isKnown && (r.use ?? true);
+    cb.checked=use; cb.disabled=!isKnown;
+    const o=fsObs(r, slope);
+    if(!o){ if(r.ha || r.d || r.za) c("X").innerHTML=`<span class="warn">${parseAng(r.ha)==null?"水平角":num(r.d)==null?"距離":"鉛直角"}が未入力</span>`; return; }
+    all.push({k, n:String(r.n??"").trim(), o, p:isKnown?p:null, use});
+  });
+  const known=all.filter(w=>w.use), res=$("fsRes");
+  $("fsBack").innerHTML = `<option value="">後視点を選ぶ</option>` + all.filter(w=>w.n).map(w=>`<option>${esc(w.n)}</option>`).join("");
+  if(S.fs.back) $("fsBack").value=S.fs.back;
+  if(known.length<2){ res.innerHTML=`<span class="warn">既知点を 2 点以上（水平角と距離）入れてください。今 ${known.length} 点。</span>`; return; }
+  // 現地の水平距離 → 平面距離（標高は既知点の平均で見積もる。1 m 違っても 0.2 ppm）
+  const hs=known.filter(w=>w.p.h!=null).map(w=>w.p.h), kg=kGround(hs.length?avg(hs):0);
+  const loc=w=>{ const s=w.o.hg/kg; return {u:s*Math.cos(rad(w.o.ha)), v:s*Math.sin(rad(w.o.ha))}; };
+  known.forEach(w=>w.l=loc(w));
+  const um=avg(known.map(w=>w.l.u)), vm=avg(known.map(w=>w.l.v)), Xm=avg(known.map(w=>w.p.x)), Ym=avg(known.map(w=>w.p.y));
+  let a=0, b=0, q=0;
+  known.forEach(w=>{ const du=w.l.u-um, dv=w.l.v-vm, dX=w.p.x-Xm, dY=w.p.y-Ym; a+=du*dX+dv*dY; b+=du*dY-dv*dX; q+=du*du+dv*dv; });
+  const th=Math.atan2(b,a), cs=Math.cos(th), sn=Math.sin(th);
+  const X0=Xm-(um*cs-vm*sn), Y0=Ym-(um*sn+vm*cs);
+  const toXY=l=>({x:X0+l.u*cs-l.v*sn, y:Y0+l.u*sn+l.v*cs});
+  // 標高：既知点の標高から逆算して平均
+  const hk=known.filter(w=>w.p.h!=null && w.o.vd!=null).map(w=>w.p.h + w.o.t - i - w.o.vd);
+  const H0 = hk.length ? avg(hk) : null;
+  let se=0; const pts=[], news=[];
+  all.forEach(w=>{
+    const P=toXY(w.l||loc(w)), c=id=>$("fs"+id+w.k);
+    const h = H0!=null && w.o.vd!=null ? H0 + i + w.o.vd - w.o.t : null;
+    c("X").textContent=f3(P.x); c("Y").textContent=f3(P.y); c("H").textContent=f3(h);
+    if(w.p){
+      const e=Math.hypot(P.x-w.p.x, P.y-w.p.y)*1000; c("E").textContent=e.toFixed(0); if(w.use) se+=e*e;
+      if(h!=null && w.p.h!=null) c("V").textContent=String(Math.round((h-w.p.h)*1000)+0);
+      pts.push({n:w.n, x:w.p.x, y:w.p.y, h:w.p.h});
+    }else if(w.n){
+      const np={n:w.n, x:+P.x.toFixed(3), y:+P.y.toFixed(3), h:h==null?null:+h.toFixed(3)};
+      news.push(np); pts.push(np);
+    }
+  });
+  const st={n:name, x:+X0.toFixed(3), y:+Y0.toFixed(3), h:H0==null?null:+H0.toFixed(3)};
+  fsOut={st, i, pts, news};
+  const scale=Math.hypot(a,b)/q;
+  res.innerHTML = `<div class="kv big"><span>${esc(name)} X</span><b>${f3(X0)}</b><span>${esc(name)} Y</span><b>${f3(Y0)}</b><span>${esc(name)} 標高</span><b>${H0!=null?f3(H0):"—（既知点の標高と天頂角が要ります）"}</b></div>
+    <div class="note">使った既知点 ${known.length} 点　水平のずれ（二乗平均）${Math.sqrt(se/known.length).toFixed(0)} mm　水平角 0° の方向角 ${dms(norm360(deg(th)))}<br>距離の縮尺のずれ（参考）${((scale-1)*1e6).toFixed(0)} ppm　…数百 ppm 以上なら距離の入力か設定の補正を確認${hk.length>1?`<br>標高のばらつき ${((Math.max(...hk)-Math.min(...hk))*1000).toFixed(0)} mm（${hk.length} 点）`:""}</div>` +
+    (news.length ? `<div class="note" style="margin-top:6px">新点：${news.map(p=>`${esc(p.n)}（X ${f3(p.x)}・Y ${f3(p.y)}${p.h!=null?`・H ${f3(p.h)}`:""}）`).join("　")}</div>` : "");
+}
+$("fsBack").onchange = ()=>{ S.fs.back=$("fsBack").value; save(); };
+$("fsAddRow").onclick = ()=>{ S.fs.rows.push({}); save(); fsRender(); };
+$("fsClear").onclick = ()=>{ if(confirm("観測値を全部消しますか？")){ S.fs.rows=[]; save(); fsRender(); } };
+$("fsSave").onclick = ()=>{
+  if(!fsOut){ alert("まだ器械点が求まっていません。"); return; }
+  const typed = fsOut.pts.filter(p=>p.n && !fsOut.news.includes(p) && !findPt(p.n));   // 表に打ち込んだだけの既知点も一覧へ
+  if(!addPts([fsOut.st, ...fsOut.news, ...typed], "器械点を求めるで計算")) return;
+  fsCalc();
+};
+$("fsGo").onclick = ()=>{
+  if(!fsOut){ alert("まだ器械点が求まっていません。"); return; }
+  const b=fsOut.pts.find(p=>p.n===$("fsBack").value);
+  if(!b){ alert("後視点を選んでください（T2 など）。"); return; }
+  const same=(p,q)=>p && Math.abs(p.x-q.x)<0.0005 && Math.abs(p.y-q.y)<0.0005;
+  const st=fsOut.st;
+  $("soO").value = same(findPt(st.n),st) ? st.n : ""; $("soOX").value=st.x; $("soOY").value=st.y; $("soOH").value=st.h??""; $("soI").value=fsOut.i;
+  $("soB").value = same(findPt(b.n),b) ? b.n : ""; $("soBX").value=b.x; $("soBY").value=b.y;
+  soStore(); document.querySelector('nav button[data-t="sokusetsu"]').click();
+};
+
+/* ---------- 丁張 ---------- */
+// 基準線（のり面上の線）から山側へ 1:n で上がるのり面。杭は基準線から山側へ「離れ」だけ出した位置
+const chIds=["chA","chB","chHA","chHB","chSide","chN","chG","chD"];
+const chIn=[["n","杭名",90],["s","追加距離",80],["L","離れ(山側)",80],["kt","杭天(実測)",90],["hb","貫の高さ",90]];
+const chOutCols=[["X","X"],["Y","Y"],["HA","水平角"],["SG","水平距離(現地)"],["ZA","天頂角(貫)"],["DG","斜距離(貫)"],["H0","基準線の高さ"],["HP","のり面の高さ(杭)"],["DH","基準線−貫"],["DX","杭→のり面"],["FT","床付の高さ"],["SL","法長(貫→床付)"]];
+function chCur(){ const st=S.ch.step||"切土"; return S.ch.steps[st] ??= {rows:[], chSide:"L"}; }
+function chRender(){
+  $("chStep").value=S.ch.step||"切土";
+  const c=chCur(); chIds.forEach(id=>$(id).value = c[id] ?? "");
+  while(c.rows.length<5) c.rows.push({});
+  $("chTable").innerHTML = `<tr><th>#</th>${chIn.map(x=>`<th>${x[1]}</th>`).join("")}${chOutCols.map(x=>`<th>${x[1]}</th>`).join("")}</tr>` +
+    c.rows.map((r,k)=>`<tr><td>${k+1}</td>${chIn.map(x=>`<td class="${x[0]==="n"?"":"n"}"><input data-k="${k}" data-c="${x[0]}" value="${esc(r[x[0]]??"")}" ${x[0]==="n"?"":'inputmode="decimal"'} style="width:${x[2]}px"></td>`).join("")}${chOutCols.map(x=>`<td class="${["HA","SG","ZA","DG","DX"].includes(x[0])?"r":"n"}" id="ch${x[0]}${k}"></td>`).join("")}</tr>`).join("");
+  chCalc();
+}
+$("chStep").onchange = ()=>{ S.ch.step=$("chStep").value; save(); chRender(); };
+["chA","chB"].forEach(id=>$(id).onchange = ()=>{
+  const c=chCur(); c[id]=$(id).value; const p=findPt(c[id]), hid=id==="chA"?"chHA":"chHB";
+  if(p && p.h!=null){ c[hid]=String(p.h); $(hid).value=p.h; }
+  save(); chCalc();
+});
+["chHA","chHB","chSide","chN","chG","chD"].forEach(id=>["input","change"].forEach(ev=>$(id).addEventListener(ev,()=>{ chCur()[id]=$(id).value; save(); chCalc(); })));
+$("chTable").addEventListener("input", e=>{ const t=e.target; if(t.dataset.k==null) return; chCur().rows[t.dataset.k][t.dataset.c]=t.value; save(); chCalc(); });
+$("chTable").addEventListener("change", e=>{ const t=e.target; if(t.dataset.c && t.dataset.c!=="n"){ t.value=z2h(t.value); chCur().rows[t.dataset.k][t.dataset.c]=t.value; save(); } });
+let chOut=[];
+function chCalc(){
+  chOut=[];
+  const c=chCur(), A=findPt(c.chA), B=findPt(c.chB), info=$("chInfo");
+  c.rows.forEach((_,k)=>chOutCols.forEach(x=>$("ch"+x[0]+k).textContent=""));
+  if(!A || !B || A===B || A.x==null || B.x==null){ info.innerHTML=`<span class="warn">基準線の始点・終点を座標一覧から選んでください（のり肩・のり尻などの点）。</span>`; return; }
+  const n=num(c.chN), hA=num(c.chHA), hB=num(c.chHB), gr=num(c.chG), dep=num(c.chD), side=c.chSide==="R"?1:-1;
+  const al=azimuth(A.x,A.y,B.x,B.y), len=Math.hypot(B.x-A.x,B.y-A.y), ca=Math.cos(rad(al)), sa=Math.sin(rad(al)), cb=Math.cos(rad(al+90*side)), sb=Math.sin(rad(al+90*side));
+  const hAt = s => hA!=null && hB!=null ? hA+(hB-hA)*s/len : hA!=null && gr!=null ? hA+s*gr/100 : (hA ?? hB);
+  // 器械は測設タブの値を使う
+  const O={x:num($("soOX").value), y:num($("soOY").value), h:num($("soOH").value)}, Bk={x:num($("soBX").value), y:num($("soBY").value)};
+  const i=num($("soI").value)??0, t=num($("soT").value)??0;
+  const okInst = O.x!=null && O.y!=null && Bk.x!=null && Bk.y!=null && (O.x!==Bk.x || O.y!==Bk.y);
+  info.innerHTML = `基準線：方向角 ${dms(al)}　長さ ${f3(len)} m${hA!=null&&hB!=null?`　縦断 ${((hB-hA)/len*100).toFixed(2)}%`:""}${n!=null&&n>0?`　のり面の角度（水平から）${dms(deg(Math.atan(1/n)))}`:""}<br>` +
+    (okInst ? `器械点 ${esc($("soO").value||"（直接入力）")}・後視点 ${esc($("soB").value||"（直接入力）")}・器械高 ${f3(i)}・目標高 ${f3(t)}（測設タブの値）${O.h==null?`<br><span class="warn">器械点の標高が空欄なので、天頂角・斜距離は出しません。</span>`:""}`
+            : `<span class="warn">測設タブで器械点・後視点を入れると、水平角・距離が出ます。</span>`);
+  c.rows.forEach((r,k)=>{
+    const s=num(r.s), L=num(r.L)??0, mk=num(r.hb), hb=mk ?? num(r.kt), cell=x=>$("ch"+x+k);   // 貫の高さが空欄なら杭天で計算
+    if(s==null) return;
+    const x=A.x+s*ca+L*cb, y=A.y+s*sa+L*sb, h0=hAt(s);
+    cell("X").textContent=f3(x); cell("Y").textContent=f3(y); cell("H0").textContent=f3(h0);
+    if(n!=null && n>0 && h0!=null){
+      cell("HP").textContent=f3(h0+L/n);
+      if(hb!=null) cell("DX").textContent=f3(L-(hb-h0)*n);
+    }else if(n===0) cell("DX").textContent=f3(L);
+    if(h0!=null && hb!=null) cell("DH").textContent=f3(h0-hb);
+    if(h0!=null && dep!=null){
+      const ft=h0-dep; cell("FT").textContent=f3(ft);
+      if(hb!=null && n!=null) cell("SL").textContent=f3((hb-ft)*Math.sqrt(1+n*n));
+    }
+    if(okInst){
+      const a=stake(O,Bk,{x,y,h:null},i,t); cell("HA").textContent=dms(a.ha); cell("SG").textContent=f3(a.sg);
+      if(mk!=null && O.h!=null){ const m=stake(O,Bk,{x,y,h:mk},i,0); cell("ZA").textContent=dms(m.za); cell("DG").textContent=f3(m.dg); }
+    }
+    chOut.push({n:String(r.n??"").trim()||`${S.ch.step||"切土"}丁張${k+1}`, x:+x.toFixed(3), y:+y.toFixed(3), h:null});
+  });
+}
+$("chAddRow").onclick = ()=>{
+  const rows=chCur().rows, f=rows.filter(r=>num(r.s)!=null), last=f[f.length-1], prev=f[f.length-2];
+  const nr={}; if(last){ nr.L=last.L; if(prev) nr.s=String(+(num(last.s)*2-num(prev.s)).toFixed(3)); }
+  const at=rows.findIndex(r=>!String(r.n??"").trim() && num(r.s)==null);   // 空いている行があればそこへ
+  if(at>=0 && last) rows[at]=nr; else rows.push(nr);
+  save(); chRender();
+};
+$("chClear").onclick = ()=>{ if(confirm(`「${S.ch.step||"切土"}」の杭を全部消しますか？`)){ chCur().rows=[]; save(); chRender(); } };
+$("chSave").onclick = ()=>{ if(!chOut.length){ alert("計算できた杭がありません（追加距離を入れてください）。"); return; } addPts(chOut, `${S.ch.step||"切土"}丁張`); };
 
 /* ---------- トラバース ---------- */
 const trCols = [["n","測点名",""],["ha","水平角",""],["za","鉛直角(天頂角)",""],["d","距離",""],["i","器械高",""],["t","目標高",""]];
@@ -500,7 +750,7 @@ function stInfo(){ const h=num($("soOH").value)??0; const k=kGround(h); $("stInf
 $("stOn").onchange = ()=>{ S.set.on=+$("stOn").value; save(); stInfo(); };
 
 /* ---------- 起動 ---------- */
-function renderAll(){ soCalc(); trRender(); invRender(); ptRender(); stRender(); }
+function renderAll(){ soCalc(); fsRender(); chRender(); trRender(); invRender(); ptRender(); stRender(); }
 fillSelects(); soRestore();
 if(S.tab){ const b=document.querySelector(`nav button[data-t="${S.tab}"]`); if(b) b.click(); else renderAll(); } else renderAll();
 </script>
