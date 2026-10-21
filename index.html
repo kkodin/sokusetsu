@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>測設計算 阿久和南</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--ink:#1d2330;--sub:#5d6675;--line:#d5dae2;--head:#e8eef7;--acc:#1f6fd1;--acc-ink:#fff;--warn:#b45309;--hit:#fff7d6;--res:#eef6ee}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15181e;--card:#1e232b;--ink:#e6e9ef;--sub:#9aa3b2;--line:#353c48;--head:#26303d;--acc:#4c93ec;--acc-ink:#fff;--warn:#f0a050;--hit:#3a3420;--res:#1f2d22}}
+:root[data-theme="dark"]{--bg:#15181e;--card:#1e232b;--ink:#e6e9ef;--sub:#9aa3b2;--line:#353c48;--head:#26303d;--acc:#4c93ec;--acc-ink:#fff;--warn:#f0a050;--hit:#3a3420;--res:#1f2d22}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,"Hiragino Sans","Yu Gothic UI",sans-serif;-webkit-text-size-adjust:100%}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:8px 16px 0}
+h1{font-size:18px;margin:0 0 6px}
+h1 small{font-weight:normal;color:var(--sub);font-size:13px;margin-left:8px}
+nav{display:flex;gap:4px;overflow-x:auto}
+nav button{flex:0 0 auto;border:0;background:none;color:var(--sub);font-size:16px;padding:10px 14px;border-bottom:3px solid transparent;cursor:pointer}
+nav button.on{color:var(--acc);border-bottom-color:var(--acc);font-weight:bold}
+main{padding:12px 16px 80px;max-width:1200px;margin:0 auto}
+section{display:none}section.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+.card h2{font-size:15px;margin:0 0 8px;color:var(--sub)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 12px}
+label{display:block;font-size:13px;color:var(--sub)}
+input,select{width:100%;font-size:17px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);min-height:42px}
+input[readonly]{background:var(--bg)}
+.btn{display:inline-block;border:1px solid var(--acc);background:var(--acc);color:var(--acc-ink);font-size:15px;padding:9px 14px;border-radius:8px;cursor:pointer;min-height:42px}
+.btn.ghost{background:none;color:var(--acc)}
+.btn.small{padding:4px 10px;min-height:34px;font-size:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{border:1px solid var(--line);padding:4px 6px;white-space:nowrap}
+th{background:var(--head);font-size:13px;font-weight:bold;position:sticky;top:0}
+td.n{text-align:right}
+td input{border:0;border-radius:0;min-height:38px;padding:4px 6px;font-size:16px;background:transparent}
+td.n input{text-align:right}
+tr.hit td{background:var(--hit)}
+td.r{background:var(--res);text-align:right;font-weight:bold}
+.big{font-size:20px}
+.note{font-size:13px;color:var(--sub)}
+.warn{color:var(--warn);font-size:13px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-variant-numeric:tabular-nums}
+.kv b{text-align:right}
+</style>
+</head>
+<body>
+<header>
+  <h1>測設計算<small>阿久和南・平面直角座標 第Ⅸ系</small></h1>
+  <nav id="tabs">
+    <button data-t="sokusetsu" class="on">測設</button>
+    <button data-t="trav">観測→座標</button>
+    <button data-t="inv">逆トラバース</button>
+    <button data-t="pts">座標一覧</button>
+    <button data-t="set">設定</button>
+  </nav>
+</header>
+<main>
+
+<!-- 測設 -->
+<section id="sokusetsu" class="on">
+  <div class="card">
+    <h2>器械点と後視点</h2>
+    <div class="grid">
+      <div><label>器械点</label><select id="soO" class="ptsel"></select></div>
+      <div><label>器械点 X</label><input id="soOX" inputmode="decimal" class="num"></div>
+      <div><label>器械点 Y</label><input id="soOY" inputmode="decimal" class="num"></div>
+      <div><label>器械点 標高</label><input id="soOH" inputmode="decimal" class="num"></div>
+      <div><label>器械高（任意）</label><input id="soI" inputmode="decimal" class="num" placeholder="0"></div>
+      <div><label>目標高（ミラー高）</label><input id="soT" inputmode="decimal" class="num" placeholder="0"></div>
+      <div><label>後視点</label><select id="soB" class="ptsel"></select></div>
+      <div><label>後視点 X</label><input id="soBX" inputmode="decimal" class="num"></div>
+      <div><label>後視点 Y</label><input id="soBY" inputmode="decimal" class="num"></div>
+    </div>
+    <div id="soBInfo" class="note" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <h2>任意の点を測設</h2>
+    <div class="grid">
+      <div><label>測点名</label><input id="soPN"></div>
+      <div><label>X座標</label><input id="soPX" inputmode="decimal" class="num"></div>
+      <div><label>Y座標</label><input id="soPY" inputmode="decimal" class="num"></div>
+      <div><label>測点高さ（任意）</label><input id="soPH" inputmode="decimal" class="num"></div>
+    </div>
+    <div id="soPRes" style="margin-top:10px"></div>
+    <div class="row" style="margin-top:8px"><button class="btn ghost" id="soPAdd">この点を座標一覧に追加</button></div>
+  </div>
+
+  <div class="card">
+    <h2>座標一覧の点への測設値（器械点から近い順）</h2>
+    <div class="row" style="margin-bottom:8px">
+      <input id="soFilter" placeholder="点名で絞り込み" style="max-width:260px">
+    </div>
+    <div class="scroll"><table id="soTable"></table></div>
+    <p class="note">水平角＝後視点を 0°00′00″ にして右回り。鉛直角＝天頂角（真上 0°・水平 90°）。<br>現地距離＝平面距離 ÷ 縮尺係数 ×（地球半径＋楕円体高）÷ 地球半径（設定タブで切替）。</p>
+  </div>
+</section>
+
+<!-- トラバース -->
+<section id="trav">
+  <div class="card">
+    <h2>器械点と後視点（測った距離・水平角・鉛直角から座標を求める）</h2>
+    <div class="grid">
+      <div><label>器械点</label><select id="trA" class="ptsel"></select></div>
+      <div><label>後視点</label><select id="trB" class="ptsel"></select></div>
+      <div><label>計算の仕方</label><select id="trMode"><option value="radial">放射（全部 器械点から）</option><option value="chain">トラバース（次の点へ進む）</option></select></div>
+      <div><label>距離の種類</label><select id="trDist"><option value="slope">斜距離（天頂角で水平に直す）</option><option value="horiz">水平距離</option></select></div>
+    </div>
+    <div id="trInfo" class="note" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <h2>観測値 → 座標</h2>
+    <div class="scroll"><table id="trTable"></table></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn ghost" id="trAddRow">行を追加</button>
+      <button class="btn" id="trSave">計算した点を座標一覧に追加</button>
+      <button class="btn ghost" id="trClear">観測値を消す</button>
+    </div>
+    <p class="note">水平角＝後視点を 0° にして右回り。鉛直角＝天頂角（水平 90°）。角度は 123.4530（＝123°45′30″）か「123 45 30」で入力。<br>トラバースのときは、2行目以降は「1つ前の点」に器械を据え「その前の点」を後視したものとして計算します。器械高・目標高は空欄なら 0。</p>
+  </div>
+</section>
+
+<!-- 逆トラバース -->
+<section id="inv">
+  <div class="card">
+    <h2>座標 → 方向角・距離（上の行の点から下の行の点へ）</h2>
+    <div class="scroll"><table id="invTable"></table></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn ghost" id="invAddRow">行を追加</button>
+      <button class="btn ghost" id="invClear">消す</button>
+    </div>
+    <p class="note">点名を入れるか一覧から選ぶと、座標一覧の値が入ります。座標を直接打っても計算します。方向角は北（＋X）から右回り。</p>
+  </div>
+</section>
+
+<!-- 座標一覧 -->
+<section id="pts">
+  <div class="card">
+    <h2>座標一覧（ここを直すと全部の計算に反映。この端末に自動保存）</h2>
+    <div class="row" style="margin-bottom:8px">
+      <button class="btn ghost" id="ptAdd">行を追加</button>
+      <button class="btn ghost" id="ptCsvOut">CSV 書き出し</button>
+      <label class="btn ghost" style="color:var(--acc)">CSV 読み込み<input type="file" id="ptCsvIn" accept=".csv,text/csv" hidden></label>
+      <button class="btn ghost" id="ptReset">最初の一覧に戻す</button>
+    </div>
+    <div class="scroll"><table id="ptTable"></table></div>
+    <p class="note">CSV は「測点名,X,Y,高さ,備考」の順（1行目は見出し）。X＝北が＋、Y＝東が＋（測量の座標）。</p>
+  </div>
+</section>
+
+<!-- 設定 -->
+<section id="set">
+  <div class="card">
+    <h2>距離の補正（平面距離 ⇔ 現地距離）</h2>
+    <div class="grid">
+      <div><label>補正</label><select id="stOn"><option value="1">する</option><option value="0">しない（平面距離のまま）</option></select></div>
+      <div><label>縮尺係数</label><input id="stM" inputmode="decimal" class="num"></div>
+      <div><label>ジオイド高（m）</label><input id="stN" inputmode="decimal" class="num"></div>
+    </div>
+    <div id="stInfo" class="note" style="margin-top:8px"></div>
+    <p class="note">標高は器械点の標高を使います（空欄なら 0 m）。縮尺係数・ジオイド高の初期値は現場付近の公共基準点の成果表の値です。</p>
+  </div>
+  <div class="card">
+    <h2>出典</h2>
+    <p class="note">公共基準点：横浜市公共基準点（二次網）成果表 398ブロック（基準点網図・点の記.pdf）。<br>境界点 S1〜S6：査定図.pdf 座標リスト（表記「世界測地系・任意座標」なので、公共座標として使う前に確認が必要）。</p>
+  </div>
+</section>
+</main>
+
+<script>
+const DEFAULT_PTS = [{"n": "250", "x": -62702.521, "y": -29696.625, "h": 69.829, "note": "公共基準点"}, {"n": "Ⅱ398-1", "x": -62647.564, "y": -29878.33, "h": 65.22, "note": "公共基準点"}, {"n": "Ⅱ398-2", "x": -62630.315, "y": -30016.986, "h": 63.14, "note": "公共基準点"}, {"n": "Ⅱ398-3", "x": -62442.122, "y": -30000.984, "h": 61.36, "note": "公共基準点"}, {"n": "Ⅱ398-16", "x": -62407.194, "y": -30165.832, "h": 62.58, "note": "公共基準点"}, {"n": "Ⅱ398-17", "x": -62299.012, "y": -30150.444, "h": 64.46, "note": "公共基準点"}, {"n": "Ⅱ398-18", "x": -62236.014, "y": -30158.834, "h": 65.84, "note": "公共基準点"}, {"n": "Ⅱ398-5", "x": -62180.802, "y": -30153.363, "h": 66.1, "note": "公共基準点"}, {"n": "Ⅱ398-19", "x": -62022.582, "y": -30126.122, "h": 63.94, "note": "公共基準点"}, {"n": "251", "x": -61242.775, "y": -30183.721, "h": 77.971, "note": "公共基準点"}, {"n": "251-1", "x": -61359.844, "y": -30189.775, "h": 59.17, "note": "公共基準点"}, {"n": "Ⅱ398-7", "x": -61442.997, "y": -30270.17, "h": 59.07, "note": "公共基準点"}, {"n": "Ⅱ398-8", "x": -61525.59, "y": -30257.44, "h": 63.4, "note": "公共基準点"}, {"n": "Ⅱ398-9", "x": -61850.427, "y": -30170.649, "h": 58.97, "note": "公共基準点"}, {"n": "744-1", "x": -60956.559, "y": -28378.546, "h": 81.62, "note": "公共基準点"}, {"n": "Ⅱ398-38", "x": -61017.498, "y": -28367.836, "h": 82.0, "note": "公共基準点"}, {"n": "Ⅱ398-37", "x": -61070.625, "y": -28485.668, "h": 81.83, "note": "公共基準点"}, {"n": "Ⅱ398-36", "x": -61057.938, "y": -28614.962, "h": 79.14, "note": "公共基準点"}, {"n": "Ⅱ398-35", "x": -61068.978, "y": -28667.072, "h": 78.01, "note": "公共基準点"}, {"n": "Ⅱ398-34", "x": -61092.383, "y": -28715.346, "h": 76.63, "note": "公共基準点"}, {"n": "Ⅱ398-33", "x": -61092.027, "y": -28791.445, "h": 75.75, "note": "公共基準点"}, {"n": "Ⅱ398-32", "x": -61166.976, "y": -28871.7, "h": 77.07, "note": "公共基準点"}, {"n": "Ⅱ398-31", "x": -61235.773, "y": -28965.019, "h": 77.64, "note": "公共基準点"}, {"n": "Ⅱ398-30", "x": -61347.19, "y": -29013.682, "h": 80.19, "note": "公共基準点"}, {"n": "Ⅱ398-29", "x": -61441.672, "y": -29091.568, "h": 83.48, "note": "公共基準点"}, {"n": "Ⅱ398-28", "x": -61458.958, "y": -29207.831, "h": 82.71, "note": "公共基準点"}, {"n": "Ⅱ398-27", "x": -61525.056, "y": -29243.174, "h": 78.32, "note": "公共基準点"}, {"n": "Ⅱ398-26", "x": -61606.925, "y": -29248.268, "h": 70.78, "note": "公共基準点"}, {"n": "Ⅱ398-25", "x": -61727.094, "y": -29252.462, "h": 68.66, "note": "公共基準点"}, {"n": "Ⅱ398-10", "x": -61760.806, "y": -29302.2, "h": 67.23, "note": "公共基準点"}, {"n": "Ⅱ398-24", "x": -61732.15, "y": -29439.654, "h": 54.86, "note": "公共基準点"}, {"n": "Ⅱ398-12", "x": -61786.61, "y": -29720.777, "h": 45.19, "note": "公共基準点"}, {"n": "Ⅱ398-23", "x": -61810.522, "y": -29796.489, "h": 50.68, "note": "公共基準点"}, {"n": "Ⅱ398-22", "x": -61847.788, "y": -29860.251, "h": 57.09, "note": "公共基準点"}, {"n": "Ⅱ398-21", "x": -61845.674, "y": -29938.613, "h": 61.73, "note": "公共基準点"}, {"n": "Ⅱ398-20", "x": -62013.421, "y": -29943.678, "h": 65.97, "note": "公共基準点"}, {"n": "Ⅱ398-15", "x": -62029.111, "y": -30006.711, "h": 65.16, "note": "公共基準点"}, {"n": "S1", "x": -61822.597, "y": -29554.731, "h": null, "note": "境界点（査定図・任意座標表記）"}, {"n": "S2", "x": -61825.39, "y": -29554.067, "h": null, "note": "境界点（査定図・任意座標表記）"}, {"n": "S3", "x": -61816.343, "y": -29540.825, "h": null, "note": "境界点（査定図・任意座標表記）"}, {"n": "S4", "x": -61819.388, "y": -29540.79, "h": null, "note": "境界点（査定図・任意座標表記）"}, {"n": "S5", "x": -61814.695, "y": -29534.802, "h": null, "note": "境界点（査定図・任意座標表記）"}, {"n": "S6", "x": -61817.729, "y": -29535.016, "h": null, "note": "境界点（査定図・任意座標表記）"}];
+const DEFAULT_SET = {on:1, m:0.999911, n:37.1};
+const R_EARTH = 6370000;
+const KEY = "sokusetsu_akuwaminami_v1";
+
+/* ---------- 保存 ---------- */
+let S = load();
+function load(){
+  try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && s.pts) return s; }catch(e){}
+  return {pts: DEFAULT_PTS.map(p=>({...p})), set:{...DEFAULT_SET}, so:{}, tr:{rows:[]}, inv:{rows:[]}};
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+
+/* ---------- 数値・角度 ---------- */
+function z2h(s){ return String(s??"").replace(/[０-９．－＋，　]/g,c=>({"．":".","－":"-","＋":"+","，":",","　":" "}[c]??String.fromCharCode(c.charCodeAt(0)-0xFEE0))).replace(/[ー−]/g,"-").trim(); }
+function num(s){ s = z2h(s); if(s==="") return null; const v = Number(s); return isFinite(v) ? v : null; }
+// 123.4530 → 123°45′30″ ／ "123 45 30" ／ "123°45′30″"
+function parseAng(s){
+  s = z2h(s); if(s==="") return null;
+  let neg = s.startsWith("-"); if(neg) s = s.slice(1);
+  let d;
+  if(/[\s°度′'分″"秒:]/.test(s)){
+    const a = s.split(/[^0-9.]+/).filter(x=>x!=="").map(Number);
+    if(!a.length || a.some(x=>!isFinite(x))) return null;
+    d = (a[0]||0) + (a[1]||0)/60 + (a[2]||0)/3600;
+  }else{
+    if(!/^\d*\.?\d*$/.test(s)) return null;
+    const [ip, fp=""] = s.split(".");
+    const f = (fp+"0000");
+    d = Number(ip||0) + Number(f.slice(0,2))/60 + Number(f.slice(2,4)+"."+(f.slice(4)||"0"))/3600;
+  }
+  return neg ? -d : d;
+}
+function norm360(d){ d %= 360; return d<0 ? d+360 : d; }
+function dms(d, signed){
+  if(d==null || !isFinite(d)) return "";
+  let sg = d<0 ? "-" : ""; if(!signed && d<0) sg="";
+  let t = Math.round(Math.abs(d)*3600);
+  const D = Math.floor(t/3600), M = Math.floor(t%3600/60), Sx = t%60;
+  return `${sg}${D}°${String(M).padStart(2,"0")}′${String(Sx).padStart(2,"0")}″`;
+}
+const f3 = v => v==null || !isFinite(v) ? "" : v.toFixed(3);
+const deg = r => r*180/Math.PI, rad = d => d*Math.PI/180;
+function azimuth(x1,y1,x2,y2){ return norm360(deg(Math.atan2(y2-y1, x2-x1))); }
+
+/* 平面距離 → 現地距離 の倍率 */
+function kGround(hInst){
+  const st = S.set; if(!+st.on) return 1;
+  const m = Number(st.m)||1, n = Number(st.n)||0, h = (hInst??0) + n;
+  return (1/m) * (R_EARTH + h)/R_EARTH;
+}
+
+/* ---------- 共通 ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function findPt(name){ name = String(name??"").trim(); return name ? S.pts.find(p=>p.n===name) : null; }
+function fillSelects(){
+  const opts = `<option value="">（直接入力）</option>` + S.pts.map(p=>`<option>${esc(p.n)}</option>`).join("");
+  document.querySelectorAll("select.ptsel").forEach(sel=>{ const v=sel.value; sel.innerHTML=opts; sel.value=v; });
+  let dl = $("ptlist"); if(!dl){ dl=document.createElement("datalist"); dl.id="ptlist"; document.body.appendChild(dl); }
+  dl.innerHTML = S.pts.map(p=>`<option value="${esc(p.n)}">`).join("");
+}
+document.addEventListener("change", e=>{ if(e.target.classList.contains("num")){ const v=z2h(e.target.value); if(v!==e.target.value) e.target.value=v; } }, true);
+
+/* ---------- タブ ---------- */
+$("tabs").onclick = e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on", x===b));
+  document.querySelectorAll("section").forEach(s=>s.classList.toggle("on", s.id===b.dataset.t));
+  S.tab = b.dataset.t; save(); renderAll();
+};
+
+/* ---------- 測設 ---------- */
+const soIds = ["soO","soOX","soOY","soOH","soI","soT","soB","soBX","soBY","soPN","soPX","soPY","soPH","soFilter"];
+function soRestore(){ soIds.forEach(id=>{ if(S.so[id]!=null) $(id).value = S.so[id]; }); }
+function soStore(){ soIds.forEach(id=>S.so[id]=$(id).value); save(); }
+$("soO").onchange = ()=>{ const p=findPt($("soO").value); if(p){ $("soOX").value=p.x; $("soOY").value=p.y; $("soOH").value=p.h??""; } soStore(); soCalc(); };
+$("soB").onchange = ()=>{ const p=findPt($("soB").value); if(p){ $("soBX").value=p.x; $("soBY").value=p.y; } soStore(); soCalc(); };
+["soOX","soOY","soOH"].forEach(id=>$(id).addEventListener("input",()=>{ $("soO").value=""; }));
+["soBX","soBY"].forEach(id=>$(id).addEventListener("input",()=>{ $("soB").value=""; }));
+soIds.filter(id=>!["soO","soB"].includes(id)).forEach(id=>$(id).addEventListener("input",()=>{ soStore(); soCalc(); }));
+
+function stake(O, B, P, i, t){
+  const r = {};
+  const S0 = Math.hypot(P.x-O.x, P.y-O.y);
+  r.ap = azimuth(O.x,O.y,P.x,P.y);
+  r.ha = norm360(r.ap - azimuth(O.x,O.y,B.x,B.y));
+  r.sp = S0;
+  r.k = kGround(O.h);
+  r.sg = S0 * r.k;
+  if(O.h!=null && P.h!=null){
+    r.dh = (P.h + t) - (O.h + i);
+    r.za = 90 - deg(Math.atan2(r.dh, r.sg));
+    r.dg = Math.hypot(r.sg, r.dh);
+  }
+  return r;
+}
+function soCalc(){
+  const O = {x:num($("soOX").value), y:num($("soOY").value), h:num($("soOH").value)};
+  const B = {x:num($("soBX").value), y:num($("soBY").value)};
+  const i = num($("soI").value) ?? 0, t = num($("soT").value) ?? 0;
+  const okO = O.x!=null && O.y!=null, okB = B.x!=null && B.y!=null && okO && (B.x!==O.x || B.y!==O.y);
+  const info = $("soBInfo");
+  if(!okO){ info.innerHTML = `<span class="warn">器械点の座標を入れてください。</span>`; }
+  else if(!okB){ info.innerHTML = `<span class="warn">後視点の座標を入れてください（器械点と違う点）。</span>`; }
+  else{
+    const sp = Math.hypot(B.x-O.x,B.y-O.y), k = kGround(O.h);
+    info.innerHTML = `後視点の確認：方向角 <b>${dms(azimuth(O.x,O.y,B.x,B.y))}</b>　水平距離（現地）<b>${f3(sp*k)} m</b>（平面 ${f3(sp)} m）` + (O.h==null ? `<br><span class="warn">器械点の標高が空欄なので、鉛直角・斜距離は出しません。</span>` : "");
+  }
+  // 任意の点
+  const P = {n:$("soPN").value.trim(), x:num($("soPX").value), y:num($("soPY").value), h:num($("soPH").value)};
+  const pr = $("soPRes");
+  if(okB && P.x!=null && P.y!=null){
+    const r = stake(O,B,P,i,t);
+    pr.innerHTML = `<div class="kv big">
+      <span>水平角</span><b>${dms(r.ha)}</b>
+      <span>鉛直角（天頂角）</span><b>${r.za!=null?dms(r.za):"—"}</b>
+      <span>水平距離（現地）</span><b>${f3(r.sg)} m</b>
+      <span>斜距離（現地）</span><b>${r.dg!=null?f3(r.dg)+" m":"—"}</b>
+    </div><div class="note">方向角 ${dms(r.ap)}　平面距離 ${f3(r.sp)} m${r.dh!=null?`　高低差 ${f3(r.dh)} m`:""}</div>`;
+  } else pr.innerHTML = `<div class="note">X・Y を入れると、ここに水平角・鉛直角・距離が出ます。</div>`;
+  // 一覧
+  const tb = $("soTable");
+  const head = `<tr><th>測点名</th><th>X</th><th>Y</th><th>高さ</th><th>水平角</th><th>鉛直角(天頂角)</th><th>水平距離(現地)</th><th>斜距離(現地)</th><th>平面距離</th><th>方向角</th></tr>`;
+  if(!okB){ tb.innerHTML = head; return; }
+  const fl = z2h($("soFilter").value).toLowerCase();
+  const rows = S.pts.filter(p=>p.x!=null && p.y!=null && !(p.x===O.x && p.y===O.y))
+    .filter(p=>!fl || String(p.n).toLowerCase().includes(fl))
+    .map(p=>({p, r:stake(O,B,p,i,t)})).sort((a,b)=>a.r.sp-b.r.sp);
+  tb.innerHTML = head + rows.map(({p,r})=>`<tr${p.x===B.x&&p.y===B.y?' class="hit"':""}><td>${esc(p.n)}</td><td class="n">${f3(p.x)}</td><td class="n">${f3(p.y)}</td><td class="n">${f3(p.h)}</td>
+    <td class="r">${dms(r.ha)}</td><td class="r">${r.za!=null?dms(r.za):""}</td><td class="r">${f3(r.sg)}</td><td class="r">${f3(r.dg)}</td><td class="n">${f3(r.sp)}</td><td class="n">${dms(r.ap)}</td></tr>`).join("");
+}
+$("soPAdd").onclick = ()=>{
+  const n=$("soPN").value.trim(), x=num($("soPX").value), y=num($("soPY").value), h=num($("soPH").value);
+  if(!n || x==null || y==null){ alert("測点名・X・Y を入れてください。"); return; }
+  if(findPt(n) && !confirm(`「${n}」はもうあります。上書きしますか？`)) return;
+  upsertPt({n,x,y,h,note:"測設画面で追加"}); alert(`「${n}」を座標一覧に入れました。`);
+};
+function upsertPt(p){ const q=findPt(p.n); if(q) Object.assign(q,p); else S.pts.push(p); save(); fillSelects(); }
+
+/* ---------- トラバース ---------- */
+const trCols = [["n","測点名",""],["ha","水平角",""],["za","鉛直角(天頂角)",""],["d","距離",""],["i","器械高",""],["t","目標高",""]];
+function trEnsure(){ while(S.tr.rows.length<5) S.tr.rows.push({}); }
+["trA","trB","trMode","trDist"].forEach(id=>{ $(id).onchange=()=>{ S.tr[id]=$(id).value; save(); trCalc(); }; });
+function trRender(){
+  trEnsure();
+  ["trA","trB","trMode","trDist"].forEach(id=>{ if(S.tr[id]!=null) $(id).value=S.tr[id]; });
+  $("trTable").innerHTML = `<tr><th>#</th>${trCols.map(c=>`<th>${c[1]}</th>`).join("")}<th>器械点</th><th>X</th><th>Y</th><th>標高</th><th>方向角</th><th>水平距離(平面)</th></tr>` +
+    S.tr.rows.map((r,k)=>`<tr><td>${k+1}</td>${trCols.map(c=>`<td class="${c[0]==="n"?"":"n"}"><input data-k="${k}" data-c="${c[0]}" value="${esc(r[c[0]]??"")}" ${c[0]==="n"?"":'inputmode="decimal"'} style="width:${c[0]==="n"?110:c[0]==="ha"||c[0]==="za"?110:86}px"></td>`).join("")}<td id="trS${k}"></td><td class="r" id="trX${k}"></td><td class="r" id="trY${k}"></td><td class="r" id="trH${k}"></td><td class="n" id="trAz${k}"></td><td class="n" id="trSp${k}"></td></tr>`).join("");
+  trCalc();
+}
+$("trTable").addEventListener("input", e=>{ const t=e.target; if(t.dataset.k==null) return; S.tr.rows[t.dataset.k][t.dataset.c]=t.value; save(); trCalc(); });
+$("trTable").addEventListener("change", e=>{ const t=e.target; if(t.dataset.c && t.dataset.c!=="n"){ t.value=z2h(t.value); S.tr.rows[t.dataset.k][t.dataset.c]=t.value; save(); } });
+let trOut = [];
+function trCalc(){
+  trOut = [];
+  const A = findPt($("trA").value), B = findPt($("trB").value), chain = $("trMode").value==="chain", slope = $("trDist").value==="slope";
+  const info = $("trInfo");
+  if(!A || !B || A===B){ info.innerHTML = `<span class="warn">器械点と後視点を座標一覧から選んでください。</span>`; S.tr.rows.forEach((_,k)=>["S","X","Y","H","Az","Sp"].forEach(c=>$("tr"+c+k).textContent="")); return; }
+  info.innerHTML = `器械点→後視点：方向角 <b>${dms(azimuth(A.x,A.y,B.x,B.y))}</b>　平面距離 ${f3(Math.hypot(B.x-A.x,B.y-A.y))} m`;
+  let st = {n:A.n,x:A.x,y:A.y,h:A.h}, bk = {x:B.x,y:B.y}, broken = false;
+  S.tr.rows.forEach((r,k)=>{
+    const ha = parseAng(r.ha), za = parseAng(r.za), d = num(r.d), i = num(r.i)??0, t = num(r.t)??0;
+    const cell = c=>$("tr"+c+k);
+    ["S","X","Y","H","Az","Sp"].forEach(c=>cell(c).textContent="");
+    const empty = !String(r.n??"").trim() && ha==null && d==null;
+    if(empty) return;
+    if(broken || ha==null || d==null || (slope && za==null)){ cell("S").innerHTML = broken?"":`<span class="warn">${ha==null?"水平角":d==null?"距離":"鉛直角"}が未入力</span>`; if(chain) broken=true; return; }
+    const az = norm360(azimuth(st.x,st.y,bk.x,bk.y) + ha);
+    const kg = kGround(st.h);
+    const hg = slope ? d*Math.sin(rad(za)) : d;          // 現地の水平距離
+    const sp = hg / kg;                                    // 平面距離
+    const x = st.x + sp*Math.cos(rad(az)), y = st.y + sp*Math.sin(rad(az));
+    let h = null;
+    if(st.h!=null && za!=null){ const vd = slope ? d*Math.cos(rad(za)) : hg/Math.tan(rad(za)); h = st.h + i + vd - t; }
+    cell("S").textContent = st.n; cell("X").textContent=f3(x); cell("Y").textContent=f3(y); cell("H").textContent=f3(h); cell("Az").textContent=dms(az); cell("Sp").textContent=f3(sp);
+    trOut.push({n:String(r.n??"").trim(), x:+x.toFixed(3), y:+y.toFixed(3), h:h==null?null:+h.toFixed(3)});
+    if(chain){ bk = {x:st.x,y:st.y}; st = {n:String(r.n??"").trim()||`(${k+1})`, x, y, h}; }
+  });
+}
+$("trAddRow").onclick = ()=>{ S.tr.rows.push({}); save(); trRender(); };
+$("trClear").onclick = ()=>{ if(confirm("観測値を全部消しますか？")){ S.tr.rows=[]; save(); trRender(); } };
+$("trSave").onclick = ()=>{
+  const ok = trOut.filter(p=>p.n);
+  if(!ok.length){ alert("計算できた点（測点名あり）がありません。"); return; }
+  const dup = ok.filter(p=>findPt(p.n)).map(p=>p.n);
+  if(dup.length && !confirm(`次の点はもうあります。上書きしますか？\n${dup.join("、")}`)) return;
+  ok.forEach(p=>upsertPt({...p, note:"トラバースで計算"})); alert(`${ok.length} 点を座標一覧に入れました。`);
+};
+
+/* ---------- 逆トラバース ---------- */
+function invEnsure(){ while(S.inv.rows.length<6) S.inv.rows.push({}); }
+function invRender(){
+  invEnsure();
+  $("invTable").innerHTML = `<tr><th>#</th><th>測点名</th><th>X</th><th>Y</th><th>高さ</th><th>方向角</th><th>平面距離</th><th>現地距離</th><th>ΔX</th><th>ΔY</th><th>高低差</th><th>勾配</th></tr>` +
+    S.inv.rows.map((r,k)=>`<tr><td>${k+1}</td><td><input list="ptlist" data-k="${k}" data-c="n" value="${esc(r.n??"")}" style="width:120px"></td>${["x","y","h"].map(c=>`<td class="n"><input data-k="${k}" data-c="${c}" value="${esc(r[c]??"")}" inputmode="decimal" style="width:${c==="h"?80:115}px"></td>`).join("")}${["Az","Sp","Sg","DX","DY","DH","G"].map(c=>`<td class="${c==="Az"||c==="Sp"||c==="Sg"?"r":"n"}" id="iv${c}${k}"></td>`).join("")}</tr>`).join("");
+  invCalc();
+}
+$("invTable").addEventListener("input", e=>{
+  const t=e.target; if(t.dataset.k==null) return; const r=S.inv.rows[t.dataset.k];
+  r[t.dataset.c]=t.value;
+  if(t.dataset.c==="n"){ const p=findPt(t.value); if(p){ r.x=p.x; r.y=p.y; r.h=p.h??""; const tr=t.closest("tr"); tr.querySelector('[data-c="x"]').value=p.x; tr.querySelector('[data-c="y"]').value=p.y; tr.querySelector('[data-c="h"]').value=p.h??""; } }
+  save(); invCalc();
+});
+$("invTable").addEventListener("change", e=>{ const t=e.target; if(t.dataset.c && t.dataset.c!=="n"){ t.value=z2h(t.value); S.inv.rows[t.dataset.k][t.dataset.c]=t.value; save(); } });
+function invCalc(){
+  let prev = null;
+  S.inv.rows.forEach((r,k)=>{
+    const p = {x:num(r.x), y:num(r.y), h:num(r.h)};
+    const c = id=>$("iv"+id+k); ["Az","Sp","Sg","DX","DY","DH","G"].forEach(id=>c(id).textContent="");
+    if(p.x==null || p.y==null){ prev=null; return; }
+    if(prev){
+      const dx=p.x-prev.x, dy=p.y-prev.y, sp=Math.hypot(dx,dy), sg=sp*kGround(prev.h);
+      c("Az").textContent=dms(azimuth(prev.x,prev.y,p.x,p.y)); c("Sp").textContent=f3(sp); c("Sg").textContent=f3(sg);
+      c("DX").textContent=f3(dx); c("DY").textContent=f3(dy);
+      if(p.h!=null && prev.h!=null){ const dh=p.h-prev.h; c("DH").textContent=f3(dh); if(sg>0) c("G").textContent=(dh/sg*100).toFixed(2)+"%"; }
+    }
+    prev = p;
+  });
+}
+$("invAddRow").onclick = ()=>{ S.inv.rows.push({}); save(); invRender(); };
+$("invClear").onclick = ()=>{ if(confirm("全部消しますか？")){ S.inv.rows=[]; save(); invRender(); } };
+
+/* ---------- 座標一覧 ---------- */
+function ptRender(){
+  $("ptTable").innerHTML = `<tr><th>測点名</th><th>X座標</th><th>Y座標</th><th>測点高さ</th><th>備考</th><th></th></tr>` +
+    S.pts.map((p,k)=>`<tr><td><input data-k="${k}" data-c="n" value="${esc(p.n)}" style="width:120px"></td>${["x","y","h"].map(c=>`<td class="n"><input data-k="${k}" data-c="${c}" value="${p[c]??""}" inputmode="decimal" style="width:${c==="h"?90:120}px"></td>`).join("")}<td><input data-k="${k}" data-c="note" value="${esc(p.note??"")}" style="width:200px"></td><td><button class="btn ghost small" data-del="${k}">削除</button></td></tr>`).join("");
+}
+$("ptTable").addEventListener("change", e=>{
+  const t=e.target; if(t.dataset.k==null) return; const p=S.pts[t.dataset.k];
+  if(["x","y","h"].includes(t.dataset.c)){ t.value=z2h(t.value); p[t.dataset.c]=num(t.value); } else p[t.dataset.c]=t.value.trim();
+  save(); fillSelects();
+});
+$("ptTable").addEventListener("click", e=>{ const k=e.target.dataset.del; if(k==null) return; if(confirm(`「${S.pts[k].n}」を消しますか？`)){ S.pts.splice(k,1); save(); fillSelects(); ptRender(); } });
+$("ptAdd").onclick = ()=>{ S.pts.push({n:"",x:null,y:null,h:null,note:""}); save(); ptRender(); };
+$("ptReset").onclick = ()=>{ if(confirm("座標一覧を最初の状態に戻しますか？（追加・修正した点は消えます）")){ S.pts=DEFAULT_PTS.map(p=>({...p})); save(); fillSelects(); ptRender(); } };
+$("ptCsvOut").onclick = ()=>{
+  const q = v => /[",\n]/.test(String(v??"")) ? `"${String(v).replace(/"/g,'""')}"` : (v??"");
+  const csv = "﻿測点名,X,Y,高さ,備考\r\n" + S.pts.map(p=>[p.n,f3(p.x),f3(p.y),f3(p.h),p.note].map(q).join(",")).join("\r\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download = "座標一覧.csv"; a.click();
+};
+$("ptCsvIn").onchange = async e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const text = (await f.text()).replace(/^﻿/,"");
+  const rows = text.split(/\r?\n/).filter(l=>l.trim()).map(l=>{ const a=[]; let cur="",inq=false; for(let i=0;i<l.length;i++){ const ch=l[i]; if(inq){ if(ch==='"'){ if(l[i+1]==='"'){cur+='"';i++;} else inq=false; } else cur+=ch; } else if(ch==='"') inq=true; else if(ch===','){ a.push(cur); cur=""; } else cur+=ch; } a.push(cur); return a; });
+  const body = rows.filter(r=>num(r[1])!=null && num(r[2])!=null);
+  if(!body.length){ alert("読める行がありませんでした（測点名,X,Y,高さ,備考 の順）。"); return; }
+  const add = confirm(`${body.length} 点を読み込みます。\nOK＝今の一覧に足す（同じ名前は上書き）／キャンセル＝今の一覧と入れ替え`);
+  if(!add) S.pts = [];
+  body.forEach(r=>upsertPt({n:r[0].trim(), x:num(r[1]), y:num(r[2]), h:num(r[3]), note:(r[4]??"").trim()}));
+  e.target.value=""; save(); fillSelects(); ptRender();
+};
+
+/* ---------- 設定 ---------- */
+function stRender(){ $("stOn").value=String(S.set.on); $("stM").value=S.set.m; $("stN").value=S.set.n; stInfo(); }
+function stInfo(){ const h=num($("soOH").value)??0; const k=kGround(h); $("stInfo").innerHTML=`今の倍率（器械点標高 ${f3(h)} m）：現地距離 ＝ 平面距離 × <b>${k.toFixed(7)}</b>（100 m で ${((k-1)*100000).toFixed(1)} mm）`; }
+["stOn","stM","stN"].forEach(id=>$(id).addEventListener("input",()=>{ S.set={on:+$("stOn").value, m:num($("stM").value)??1, n:num($("stN").value)??0}; save(); stInfo(); }));
+$("stOn").onchange = ()=>{ S.set.on=+$("stOn").value; save(); stInfo(); };
+
+/* ---------- 起動 ---------- */
+function renderAll(){ soCalc(); trRender(); invRender(); ptRender(); stRender(); }
+fillSelects(); soRestore();
+if(S.tab){ const b=document.querySelector(`nav button[data-t="${S.tab}"]`); if(b) b.click(); else renderAll(); } else renderAll();
+</script>
+</body>
+</html>
