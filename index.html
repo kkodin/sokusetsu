@@ -27,6 +27,8 @@ input,select{width:100%;font-size:17px;padding:8px;border:1px solid var(--line);
 input[readonly]{background:var(--bg)}
 .btn{display:inline-block;border:1px solid var(--acc);background:var(--acc);color:var(--acc-ink);font-size:15px;padding:9px 14px;border-radius:8px;cursor:pointer;min-height:42px}
 .btn.ghost{background:none;color:var(--acc)}
+.btn:disabled{opacity:.4;cursor:default}
+input.chk{width:24px;height:24px;min-height:0;margin:0;accent-color:var(--acc)}
 .btn.small{padding:4px 10px;min-height:34px;font-size:14px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -141,6 +143,7 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
     <h2>座標一覧（ここを直すと全部の計算に反映。この端末に自動保存）</h2>
     <div class="row" style="margin-bottom:8px">
       <button class="btn ghost" id="ptAdd">行を追加</button>
+      <button class="btn ghost" id="ptDelSel" disabled>選んだ点を削除（0）</button>
       <button class="btn ghost" id="ptCsvOut">CSV 書き出し</button>
       <label class="btn ghost" style="color:var(--acc)">CSV 読み込み<input type="file" id="ptCsvIn" accept=".csv,text/csv" hidden></label>
       <button class="btn ghost" id="ptReset">最初の一覧に戻す</button>
@@ -395,10 +398,31 @@ $("invAddRow").onclick = ()=>{ S.inv.rows.push({}); save(); invRender(); };
 $("invClear").onclick = ()=>{ if(confirm("全部消しますか？")){ S.inv.rows=[]; save(); invRender(); } };
 
 /* ---------- 座標一覧 ---------- */
-function ptRender(){
-  $("ptTable").innerHTML = `<tr><th>測点名</th><th>X座標</th><th>Y座標</th><th>測点高さ</th><th>備考</th><th></th></tr>` +
-    S.pts.map((p,k)=>`<tr><td><input data-k="${k}" data-c="n" value="${esc(p.n)}" style="width:120px"></td>${["x","y","h"].map(c=>`<td class="n"><input data-k="${k}" data-c="${c}" value="${p[c]??""}" inputmode="decimal" style="width:${c==="h"?90:120}px"></td>`).join("")}<td><input data-k="${k}" data-c="note" value="${esc(p.note??"")}" style="width:200px"></td><td><button class="btn ghost small" data-del="${k}">削除</button></td></tr>`).join("");
+const ptSel = new Set();   // チェックした点（画面を開いている間だけ）
+function ptSelInfo(){
+  for(const p of ptSel) if(!S.pts.includes(p)) ptSel.delete(p);
+  $("ptDelSel").textContent = `選んだ点を削除（${ptSel.size}）`;
+  $("ptDelSel").disabled = !ptSel.size;
+  const all = $("ptSelAll"); if(all){ all.checked = S.pts.length>0 && ptSel.size===S.pts.length; all.indeterminate = ptSel.size>0 && ptSel.size<S.pts.length; }
 }
+function ptRender(){
+  $("ptTable").innerHTML = `<tr><th><input type="checkbox" id="ptSelAll" class="chk" title="全部選ぶ／全部外す"></th><th>測点名</th><th>X座標</th><th>Y座標</th><th>測点高さ</th><th>備考</th><th></th></tr>` +
+    S.pts.map((p,k)=>`<tr${ptSel.has(p)?' class="hit"':""}><td style="text-align:center"><input type="checkbox" class="chk" data-sel="${k}"${ptSel.has(p)?" checked":""}></td><td><input data-k="${k}" data-c="n" value="${esc(p.n)}" style="width:120px"></td>${["x","y","h"].map(c=>`<td class="n"><input data-k="${k}" data-c="${c}" value="${p[c]??""}" inputmode="decimal" style="width:${c==="h"?90:120}px"></td>`).join("")}<td><input data-k="${k}" data-c="note" value="${esc(p.note??"")}" style="width:200px"></td><td><button class="btn ghost small" data-del="${k}">削除</button></td></tr>`).join("");
+  ptSelInfo();
+}
+$("ptTable").addEventListener("change", e=>{
+  const t=e.target;
+  if(t.id==="ptSelAll"){ ptSel.clear(); if(t.checked) S.pts.forEach(p=>ptSel.add(p)); ptRender(); return; }
+  if(t.dataset.sel==null) return;
+  const p=S.pts[t.dataset.sel]; if(t.checked) ptSel.add(p); else ptSel.delete(p);
+  t.closest("tr").classList.toggle("hit", t.checked); ptSelInfo();
+});
+$("ptDelSel").onclick = ()=>{
+  if(!ptSel.size) return;
+  const names=[...ptSel].map(p=>p.n||"（名前なし）");
+  if(!confirm(`${ptSel.size} 点を消しますか？\n${names.slice(0,10).join("、")}${names.length>10?` ほか ${names.length-10} 点`:""}`)) return;
+  S.pts = S.pts.filter(p=>!ptSel.has(p)); ptSel.clear(); save(); fillSelects(); ptRender();
+};
 $("ptTable").addEventListener("change", e=>{
   const t=e.target; if(t.dataset.k==null) return; const p=S.pts[t.dataset.k];
   if(["x","y","h"].includes(t.dataset.c)){ t.value=z2h(t.value); p[t.dataset.c]=num(t.value); } else p[t.dataset.c]=t.value.trim();
