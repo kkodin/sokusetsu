@@ -280,7 +280,7 @@ function dmsOnly(d, signed){
   const D = Math.floor(t/3600), M = Math.floor(t%3600/60), Sx = t%60;
   return `${sg}${D}°${String(M).padStart(2,"0")}′${String(Sx).padStart(2,"0")}″`;
 }
-const f3 = v => v==null || !isFinite(v) ? "" : v.toFixed(3);
+const f3 = v => v==null || !isFinite(v) ? "" : v.toFixed(3).replace(/^-(0\.0+)$/,"$1");   // -0.000 は 0.000 に
 const deg = r => r*180/Math.PI, rad = d => d*Math.PI/180;
 function azimuth(x1,y1,x2,y2){ return norm360(deg(Math.atan2(y2-y1, x2-x1))); }
 

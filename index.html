@@ -133,6 +133,15 @@ label.btn.ghost{color:var(--acc);display:inline-flex;align-items:center}
       <button class="btn ghost" id="fsGo">この器械点・後視点で測設へ</button>
     </div>
   </div>
+  <div class="card">
+    <h2>既知点 2 点ずつの組合せで求めた器械点</h2>
+    <div class="row" style="margin-bottom:6px"><label style="display:flex;align-items:center;gap:6px">並べ方 <select id="fsPairSort" style="width:auto"><option value="pair">組合せの順</option><option value="dd">距離の差が小さい順</option><option value="e">全体の結果に近い順</option></select></label></div>
+    <div id="fsPairs"></div>
+    <p class="note">座標と観測（水平角・距離）が入った既知点から 2 点を選ぶ、考えられる組合せ全部で器械点を出します（「計算に使う」の印に関係なく全部の点で）。<br>
+    距離の差＝2 点の間の距離を、観測（水平角・距離）から出したもの − 座標から出したもの。差の大きい組に入っている点は、座標か観測が怪しい点です（20 mm を超えると色が付きます）。<br>
+    挟む角＝器械点から見た 2 点の間の角。30° より小さい・150° より大きい組は位置の決まりが弱いので色が付きます。<br>
+    全体の結果とのずれ＝上の「結果」（印のある点全部で求めた器械点）との差。「この2点で計算」を押すと、その 2 点だけに印を付けて結果を出し直します。</p>
+  </div>
 </section>
 
 <!-- 測設 -->
@@ -338,7 +347,7 @@ function dmsOnly(d, signed){
   const D = Math.floor(t/3600), M = Math.floor(t%3600/60), Sx = t%60;
   return `${sg}${D}°${String(M).padStart(2,"0")}′${String(Sx).padStart(2,"0")}″`;
 }
-const f3 = v => v==null || !isFinite(v) ? "" : v.toFixed(3);
+const f3 = v => v==null || !isFinite(v) ? "" : v.toFixed(3).replace(/^-(0\.0+)$/,"$1");   // -0.000 は 0.000 に
 const deg = r => r*180/Math.PI, rad = d => d*Math.PI/180;
 function azimuth(x1,y1,x2,y2){ return norm360(deg(Math.atan2(y2-y1, x2-x1))); }
 
@@ -730,11 +739,22 @@ function fsObs(r, slope){
   const vd = za==null ? null : slope ? d*Math.cos(rad(za)) : hg/Math.tan(rad(za));
   return {ha, hg, vd, t:num(r.t)??0};
 }
-let fsOut = null;
-function fsCalc(){
-  fsOut = null; $("fsPlot").innerHTML = "";
+// 器械点を原点にした観測（u・v）を、回転と平行移動だけで既知座標に合わせる（縮尺は設定の補正で固定）
+function fsFit(ws){
+  const um=avg(ws.map(w=>w.l.u)), vm=avg(ws.map(w=>w.l.v)), Xm=avg(ws.map(w=>w.p.x)), Ym=avg(ws.map(w=>w.p.y));
+  let a=0, b=0, q=0;
+  ws.forEach(w=>{ const du=w.l.u-um, dv=w.l.v-vm, dX=w.p.x-Xm, dY=w.p.y-Ym; a+=du*dX+dv*dY; b+=du*dY-dv*dX; q+=du*du+dv*dv; });
+  const th=Math.atan2(b,a), cs=Math.cos(th), sn=Math.sin(th);
+  const X0=Xm-(um*cs-vm*sn), Y0=Ym-(um*sn+vm*cs);
+  return {th, a, b, q, X0, Y0, toXY:l=>({x:X0+l.u*cs-l.v*sn, y:Y0+l.u*sn+l.v*cs})};
+}
+let fsOut = null, fsLast = null;
+function fsCalc(){ fsPairs(fsCalcMain()); }
+function fsCalcMain(){
+  fsOut = null; fsLast = null; $("fsPlot").innerHTML = "";
   const slope=$("fsDist").value==="slope", i=num($("fsI").value)??0, name=$("fsN").value.trim()||"器械点";
   const all=[], noZa=[];
+  fsLast = {all, i};
   S.fs.rows.forEach((r,k)=>{
     const c=id=>$("fs"+id+k); ["X","Y","H","E","V"].forEach(id=>c(id).textContent="");
     const p={x:num(r.kx), y:num(r.ky), h:num(r.kh)}, cb=$("fsTable").querySelector(`input[data-c="use"][data-k="${k}"]`);
@@ -763,12 +783,7 @@ function fsCalc(){
   if(dupP.length || dupO.length){ res.innerHTML = `<span class="warn">計算できません。` +
     (dupP.length ? `${dupP.join("、")} 行目の既知座標が同じです（同じ点を2回入れていませんか）。` : "") +
     (dupO.length ? `${dupO.join("、")} 行目の水平角・距離が同じです。` : "") + `入れ直すか、片方の「計算に使う」の印を外してください。</span>`; return; }
-  const um=avg(known.map(w=>w.l.u)), vm=avg(known.map(w=>w.l.v)), Xm=avg(known.map(w=>w.p.x)), Ym=avg(known.map(w=>w.p.y));
-  let a=0, b=0, q=0;
-  known.forEach(w=>{ const du=w.l.u-um, dv=w.l.v-vm, dX=w.p.x-Xm, dY=w.p.y-Ym; a+=du*dX+dv*dY; b+=du*dY-dv*dX; q+=du*du+dv*dv; });
-  const th=Math.atan2(b,a), cs=Math.cos(th), sn=Math.sin(th);
-  const X0=Xm-(um*cs-vm*sn), Y0=Ym-(um*sn+vm*cs);
-  const toXY=l=>({x:X0+l.u*cs-l.v*sn, y:Y0+l.u*sn+l.v*cs});
+  const {th, a, b, q, X0, Y0, toXY}=fsFit(known);
   // 標高：既知点の標高から逆算して平均
   const hk=known.filter(w=>w.p.h!=null && w.o.vd!=null).map(w=>w.p.h + w.o.t - i - w.o.vd);
   const H0 = hk.length ? avg(hk) : null;
@@ -796,7 +811,52 @@ function fsCalc(){
   res.innerHTML = `<div class="kv big"><span>${esc(name)} X</span><b>${f3(X0)}</b><span>${esc(name)} Y</span><b>${f3(Y0)}</b><span>${esc(name)} 標高</span><b>${H0!=null?f3(H0):"—（既知点の標高と天頂角が要ります）"}</b></div>
     <div class="note">使った既知点 ${known.length} 点　水平のずれ（二乗平均）${Math.sqrt(se/known.length).toFixed(0)} mm　水平角 0° の方向角 ${dms(norm360(deg(th)))}<br>距離の縮尺のずれ（参考）${((scale-1)*1e6).toFixed(0)} ppm　…数百 ppm 以上なら距離の入力か設定の補正を確認${hk.length>1?`<br>標高のばらつき ${((Math.max(...hk)-Math.min(...hk))*1000).toFixed(0)} mm（${hk.length} 点）`:""}</div>` +
     (news.length ? `<div class="note" style="margin-top:6px">新点：${news.map(p=>`${esc(p.n)}（X ${f3(p.x)}・Y ${f3(p.y)}${p.h!=null?`・H ${f3(p.h)}`:""}）`).join("　")}</div>` : "");
+  return {X0, Y0, H0};
 }
+// 既知点を 2 点ずつ選ぶ組合せごとに器械点を出す（「計算に使う」の印に関係なく、座標と観測が入った点全部から）
+let fsPairList = [];
+function fsPairs(best){
+  const box=$("fsPairs"); fsPairList=[];
+  $("fsPairSort").value = S.fs.pairSort || "pair";
+  const ws=(fsLast?.all||[]).filter(w=>w.p), i=fsLast?.i??0;
+  if(ws.length<2){ box.innerHTML=`<p class="note">既知点（座標と水平角・距離が入った行）が 2 点以上になると、ここに 2 点ずつの組合せで求めた器械点が出ます。</p>`; return; }
+  const hs=ws.filter(w=>w.p.h!=null).map(w=>w.p.h), kg=kGround(hs.length?avg(hs):0);
+  const L=w=>{ const s=w.o.hg/kg; return {p:w.p, l:{u:s*Math.cos(rad(w.o.ha)), v:s*Math.sin(rad(w.o.ha))}}; };
+  ws.forEach((A,ia)=>ws.slice(ia+1).forEach(B=>{
+    const a=L(A), b=L(B), dC=Math.hypot(A.p.x-B.p.x, A.p.y-B.p.y), dO=Math.hypot(a.l.u-b.l.u, a.l.v-b.l.v);
+    let ang=Math.abs(norm360(A.o.ha)-norm360(B.o.ha)); if(ang>180) ang=360-ang;   // 器械点での 2 点の挟む角
+    const r={A, B, ang, dd:(dO-dC)*1000};
+    if(dC<0.001 || dO<0.001){ r.bad=true; fsPairList.push(r); return; }
+    const F=fsFit([a,b]); r.x=F.X0; r.y=F.Y0; r.az=norm360(deg(F.th));
+    const hk=[A,B].filter(w=>w.p.h!=null && w.o.vd!=null).map(w=>w.p.h + w.o.t - i - w.o.vd);
+    r.h = hk.length ? avg(hk) : null;
+    if(best){ r.e=Math.hypot(r.x-best.X0, r.y-best.Y0)*1000; if(r.h!=null && best.H0!=null) r.eh=(r.h-best.H0)*1000; }
+    fsPairList.push(r);
+  }));
+  const srt=S.fs.pairSort||"pair", key={dd:r=>r.bad?1e12:Math.abs(r.dd), e:r=>r.e??1e12}[srt];
+  const list = key ? fsPairList.slice().sort((p,q)=>key(p)-key(q)) : fsPairList;
+  const nm=w=>esc(w.n||`${w.k+1}行目`), mm=v=>v==null?"":(Math.round(v)+0).toLocaleString("ja-JP");
+  // 点ごと：その点を含む組の「距離の差」の中央値（大きい点は座標か観測を疑う）
+  const med=a=>{ const s=a.slice().sort((x,y)=>x-y), m=s.length>>1; return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
+  const per = ws.length>=3 ? ws.map(w=>({w, v:med(fsPairList.filter(r=>!r.bad && (r.A===w||r.B===w)).map(r=>Math.abs(r.dd)))})) : [];
+  const ok=fsPairList.filter(r=>!r.bad), span=(f)=>ok.length ? (Math.max(...ok.map(f))-Math.min(...ok.map(f)))*1000 : 0;
+  box.innerHTML = `<div class="note">既知点 ${ws.length} 点から ${fsPairList.length} 通り。器械点の X の幅 ${mm(span(r=>r.x))} mm・Y の幅 ${mm(span(r=>r.y))} mm</div>` +
+    (per.length ? `<div class="note">点ごとの距離の差（その点を含む組の中央値）：${per.map(p=>`<span${p.v>20?' class="warn"':""}>${nm(p.w)} ${mm(p.v)} mm</span>`).join("　")}</div>` : "") +
+    `<div class="scroll" style="margin-top:6px"><table><tr><th>#</th><th>既知点の組</th><th>挟む角</th><th>距離の差(mm)</th><th>器械点 X</th><th>器械点 Y</th><th>器械点 標高</th><th>全体の結果とのずれ 水平(mm)</th><th>高さ(mm)</th><th>水平角 0° の方向角</th><th></th></tr>` +
+    list.map((r,k)=>{ const weak=r.ang<30 || r.ang>150, big=Math.abs(r.dd)>20;
+      return `<tr><td>${k+1}</td><td>${nm(r.A)} ・ ${nm(r.B)}</td><td class="n"${weak?' title="挟む角が小さい（または 180° に近い）ので、位置の決まりが弱い組です"':""}>${weak?`<span class="warn">${dmsOnly(r.ang)}</span>`:dmsOnly(r.ang)}</td>` +
+        (r.bad ? `<td colspan="7"><span class="warn">同じ点か同じ観測なので計算できません</span></td>` :
+        `<td class="n">${big?`<span class="warn">${mm(r.dd)}</span>`:mm(r.dd)}</td><td class="r">${f3(r.x)}</td><td class="r">${f3(r.y)}</td><td class="r">${r.h!=null?f3(r.h):""}</td><td class="n">${mm(r.e)}</td><td class="n">${mm(r.eh)}</td><td class="n">${dmsOnly(r.az)}</td>`) +
+        `<td><button class="btn ghost small" data-pair="${fsPairList.indexOf(r)}" title="この2点だけに「計算に使う」の印を付けて計算し直す">この2点で計算</button></td></tr>`; }).join("") +
+    `</table></div>`;
+}
+$("fsPairSort").onchange = ()=>{ S.fs.pairSort=$("fsPairSort").value; save(); fsCalc(); };
+$("fsPairs").addEventListener("click", e=>{
+  const r=fsPairList[e.target.dataset?.pair]; if(!r) return;
+  if(!confirm(`「計算に使う」の印を ${r.A.n||r.A.k+1+"行目"} と ${r.B.n||r.B.k+1+"行目"} だけにして計算し直しますか？（ほかの既知点の印は外れます）`)) return;
+  S.fs.rows.forEach((row,k)=>{ if(num(row.kx)!=null && num(row.ky)!=null) row.use = k===r.A.k || k===r.B.k; });
+  save(); fsRender(); $("fsRes").scrollIntoView({behavior:"smooth", block:"start"});
+});
 let fsResizeT; addEventListener("resize", ()=>{ clearTimeout(fsResizeT); fsResizeT=setTimeout(()=>{ if($("fsPlot").innerHTML) fsCalc(); }, 200); });
 $("fsBack").onchange = ()=>{ S.fs.back=$("fsBack").value; save(); };
 $("fsAddRow").onclick = ()=>{ S.fs.rows.push({}); save(); fsRender(); };
