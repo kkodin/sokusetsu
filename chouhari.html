@@ -397,7 +397,23 @@ function gridPos(el){
   return {tb, rows, r, c:gridCellsOf(rows[r]).indexOf(el)};
 }
 function gridAt(tb, r, c){ const rows=gridRows(tb); return rows[r] ? gridCellsOf(rows[r])[c] : null; }
-function gridGo(el){ if(!el) return; pickHide(); el.focus(); el.select?.(); }
+function gridGo(el){ if(!el) return; pickHide(); el.focus({preventScroll:true}); el.select?.(); showCell(el); }
+// マスが見えるように画面を動かす（上に貼り付いた見出し・左の # 列に隠れないように）
+function showCell(el){
+  const td=el?.closest("td,th"); if(!td) return;
+  const tb=td.closest("table"), sc=td.closest(".scroll"), tr=td.parentElement;
+  // 横：表の中を動かす（左に残る # 列の分をよける）
+  if(sc){
+    const s=sc.getBoundingClientRect(), r=td.getBoundingClientRect(), fix=td.cellIndex>0 ? (tr.cells[0]?.offsetWidth||0) : 0;
+    if(r.left < s.left+fix) sc.scrollLeft -= s.left+fix-r.left+2;
+    else if(r.right > s.right) sc.scrollLeft += r.right-s.right+2;
+  }
+  // 縦：ページを動かす。表のいちばん上の行のときは、表の見出しの行まで見せる
+  const head=document.querySelector("header")?.offsetHeight||0;
+  const top=(tr.rowIndex<=1 ? tb : td).getBoundingClientRect().top, bottom=td.getBoundingClientRect().bottom;
+  if(top < head+4) scrollBy(0, top-head-4);
+  else if(bottom > innerHeight-4) scrollBy(0, bottom-innerHeight+4);
+}
 let gridTabCol=null, gridSel=null;   // gridSel = {tb, r0, c0, r1, c1}
 function gridMark(){
   document.querySelectorAll(".gsel").forEach(e=>e.classList.remove("gsel"));
@@ -433,7 +449,7 @@ document.addEventListener("keydown", e=>{
     if(e.shiftKey){
       if(!gridSel || gridSel.tb!==g.tb) gridSel={tb:g.tb, r0:g.r, c0:g.c, r1:g.r, c1:g.c};
       [gridSel.r1, gridSel.c1]=cellJump(val, gridSel.r1, gridSel.c1, dir);
-      gridMark(); gridAt(g.tb, gridSel.r1, gridSel.c1)?.scrollIntoView({block:"nearest", inline:"nearest"});
+      gridMark(); showCell(gridAt(g.tb, gridSel.r1, gridSel.c1));
     }else{ gridSel=null; gridMark(); const [r,c]=cellJump(val, g.r, g.c, dir); gridGo(gridAt(g.tb, r, c)); }
     return;
   }
@@ -512,7 +528,7 @@ function xselMark(){
 }
 // マス (r, c) の字。表の外は null（colspan のマスは続く列でも同じ字）
 function xselVal(tb, r, c){ const row=xselMap(tb)[r]; if(!row || c<0) return null; const o=row.find(o=>o.c0<=c && o.c1>=c); return o ? xselText(o.td) : null; }
-function xselShow(r, c){ const row=xselMap(xsel.tb)[r]; row?.find(o=>o.c0<=c && o.c1>=c)?.td.scrollIntoView({block:"nearest", inline:"nearest"}); }
+function xselShow(r, c){ const row=xselMap(xsel.tb)[r]; showCell(row?.find(o=>o.c0<=c && o.c1>=c)?.td); }
 // 表をタブ区切りの文字に（範囲を渡せばその範囲だけ。ボタンの列は空）
 function xselTsv(tb, rg){
   const map=xselMap(tb), ncol=Math.max(...map.map(r=>r.length?r[r.length-1].c1+1:0));
