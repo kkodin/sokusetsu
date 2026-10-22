@@ -84,6 +84,8 @@ input.gsel, select.gsel{background:rgba(31,111,209,.16)!important;outline:1px so
 .wc{color:var(--warn)}   /* 表の中の注意：大きさはそのまま、色だけ */
 .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-variant-numeric:tabular-nums}
 .kv b{text-align:right}
+.openWarn{background:var(--hit);color:var(--ink);border-bottom:2px solid var(--warn);padding:10px 16px;font-size:15px;line-height:1.6}
+.openWarn a{color:var(--acc);word-break:break-all}
 /* 見出しの行（題名と 保存・復元・ほかの画面へ） */
 .hrow{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
 .hrow h1{margin:0}
@@ -269,7 +271,8 @@ const DEFAULT_PTS = [{"n": "250", "x": -62702.521, "y": -29696.625, "h": 69.829,
 const DEFAULT_SET = {on:1, m:0.999911, n:37.1, ang:"packed"};
 const R_EARTH = 6370000;
 const KEY = "sokusetsu_akuwaminami_v1";
-const CH_KEY = "chouhari_akuwaminami_v1";   // 丁張（別の画面）の保存
+const CH_KEY = "chouhari_akuwaminami_v1";
+const PUB_URL = "https://kkodin.github.io/sokusetsu/";   // 公開している所（保存できない開き方のとき案内する）   // 丁張（別の画面）の保存
 
 /* ---------- 保存 ---------- */
 let S = load();
@@ -650,6 +653,17 @@ document.addEventListener("keydown", e=>{
   if(e.shiftKey){ [xsel.r1, xsel.c1]=to; } else xsel={tb:xsel.tb, r0:to[0], c0:to[1], r1:to[0], c1:to[1]};
   xselMark(); xselShow(to[0], to[1]);
 });
+
+/* ---------- 開き方の確認 ---------- */
+// OneDrive・SharePoint の画面の中などで開くと、この端末に保存できない（入れた値も JSON の復元も残らない）。上に注意を出す
+(function(){
+  let ok=false; try{ localStorage.setItem("__t","1"); localStorage.removeItem("__t"); ok=true; }catch(e){}
+  let framed=false; try{ framed = window.top!==window.self; }catch(e){ framed=true; }
+  if(ok && !framed) return;
+  const d=document.createElement("div"); d.className="openWarn";
+  d.innerHTML=`この開き方では、入れた値の保存と「JSON 復元」ができません（OneDrive・SharePoint の画面の中で開いているなど）。<br><a href="${PUB_URL}" target="_blank" rel="noopener">${PUB_URL}</a> を開くか、ファイルをダウンロードしてから開いてください。`;
+  document.body.prepend(d);
+})();
 
 /* ---------- JSON で保存・復元 ---------- */
 // ファイルの中身：{app, ver, saved（保存した日時）, data（画面の値と座標一覧）}
