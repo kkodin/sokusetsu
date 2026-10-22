@@ -788,9 +788,9 @@ function fsCalc(){
   });
   const st={n:name, x:+X0.toFixed(3), y:+Y0.toFixed(3), h:H0==null?null:+H0.toFixed(3)};
   fsOut={st, i, pts, news};
-  const plan=[{...st, k:"st"}, ...all.map(w=>{ const P=toXY(w.l||loc(w)); const ob={ha:w.o.ha, d:num(S.fs.rows[w.k].d)};
-    return w.p ? {n:w.n||`${w.k+1}行目`, x:w.p.x, y:w.p.y, h:w.p.h, k:w.use?"known":"off", ...ob} : {n:w.n||`${w.k+1}行目`, x:P.x, y:P.y, h:(news.find(q=>q.n===w.n)||{}).h??null, k:"new", ...ob}; })];
-  $("fsPlot").innerHTML = planSvg(plan, plan[0], $("fsPlot")) + planKey(["st","known",...(plan.some(p=>p.k==="off")?["off"]:[]),...(news.length||plan.some(p=>p.k==="new")?["new"]:[])]);
+  // 図と三角形の表には「計算に使う」に印のある既知点だけを出す（印を外した点・新点は出さない）
+  const plan=[{...st, k:"st"}, ...known.map(w=>({n:w.n||`${w.k+1}行目`, x:w.p.x, y:w.p.y, h:w.p.h, k:"known", ha:w.o.ha, d:num(S.fs.rows[w.k].d)}))];
+  $("fsPlot").innerHTML = planSvg(plan, plan[0], $("fsPlot")) + planKey(["st","known"]);
   $("fsPlot").innerHTML += triTable(plan, plan[0]);
   const scale=Math.hypot(a,b)/q;
   res.innerHTML = `<div class="kv big"><span>${esc(name)} X</span><b>${f3(X0)}</b><span>${esc(name)} Y</span><b>${f3(Y0)}</b><span>${esc(name)} 標高</span><b>${H0!=null?f3(H0):"—（既知点の標高と天頂角が要ります）"}</b></div>
