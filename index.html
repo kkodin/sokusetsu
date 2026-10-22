@@ -64,6 +64,7 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
 .rowDel{border:0;background:none;color:var(--sub);font-size:16px;padding:0 0 0 4px;cursor:pointer}
 table[data-xsel] td, table[data-xsel] th{cursor:cell;user-select:none;-webkit-user-select:none}
 table[data-xsel] .csel{background:color-mix(in srgb, var(--acc) 18%, var(--card))!important;outline:1px solid rgba(31,111,209,.45)}
+table[data-xsel] .cact{background:var(--card)!important;outline:2px solid var(--acc);outline-offset:-2px}
 input.gsel, select.gsel{background:rgba(31,111,209,.16)!important;outline:1px solid rgba(31,111,209,.5)}
 /* 表を横に動かしても # の列は左に残す */
 .scroll table tr > :first-child{position:sticky;left:0;z-index:1;background:var(--card)}
@@ -144,7 +145,7 @@ label.btn.ghost{color:var(--acc);display:inline-flex;align-items:center}
     距離の差＝2 点の間の距離を、観測から出したもの（器械点から測った 2 本の距離と、2 点の水平角の差（＝挟む角）で三角形を作って出す）− 座標一覧の座標から出したもの。器械点の座標は使わないので、その 2 点の観測と座標が合っているかの確かめになります。差の大きい組に入っている点は、座標か観測が怪しい点です（20 mm を超えると色が付きます）。<br>
     挟む角＝器械点から見た 2 点の間の角。30° より小さい・150° より大きい組は位置の決まりが弱いので色が付きます。<br>
     全体の結果とのずれ＝上の「結果」（印のある点全部で求めた器械点）との差。「この2点で計算」を押すと、その 2 点だけに印を付けて結果を出し直します。<br>
-    表はマウスでなぞる（Shift＋クリックで広げる）と範囲を選べ、Ctrl+C でコピーして Excel・スプレッドシートにそのまま貼れます。「表を全部コピー」は見出しごと全部（iPad はこちら）。</p>
+    表はマウスでなぞる（Shift＋クリックで広げる）と範囲を選べ（矢印・Ctrl＋矢印で動く、Shift を足すと広げる、Ctrl+A で全部）、Ctrl+C でコピーして Excel・スプレッドシートにそのまま貼れます。「表を全部コピー」は見出しごと全部（iPad はこちら）。</p>
   </div>
 </section>
 
@@ -478,9 +479,32 @@ function gridSet(el, v){
   else el.value=v;
   el.dispatchEvent(new Event("input",{bubbles:true})); el.dispatchEvent(new Event("change",{bubbles:true}));
 }
+// Ctrl＋矢印の飛び先（Excel と同じ）：今のマスと次のマスに値があれば、値の続く最後のマスへ。
+// そうでなければ、次に値のあるマスへ（無ければ表の端へ）。val(r,c) は値の文字、表の外は null
+const ARROW = {ArrowUp:[-1,0], ArrowDown:[1,0], ArrowLeft:[0,-1], ArrowRight:[0,1]};
+function cellJump(val, r, c, [dr,dc]){
+  const inT=(r,c)=>val(r,c)!==null, has=(r,c)=>{ const v=val(r,c); return v!=null && String(v).trim()!==""; };
+  let nr=r+dr, nc=c+dc; if(!inT(nr,nc)) return [r,c];
+  if(has(r,c) && has(nr,nc)){ while(inT(nr+dr,nc+dc) && has(nr+dr,nc+dc)){ nr+=dr; nc+=dc; } return [nr,nc]; }
+  while(!has(nr,nc) && inT(nr+dr,nc+dc)){ nr+=dr; nc+=dc; }
+  return [nr,nc];
+}
 document.addEventListener("keydown", e=>{
   const t=e.target, g=gridPos(t); if(!g || e.isComposing) return;
   if(e.key==="Tab"){ if(gridTabCol==null) gridTabCol=g.c; gridSel=null; gridMark(); return; }   // 動きはブラウザのまま（度→分→秒→次の欄）
+  // Ctrl＋矢印＝値の入ったかたまりの端へ。Ctrl＋Shift＋矢印＝そこまで範囲を広げる（Excel と同じ）
+  const dir=ARROW[e.key];
+  if(dir && (e.ctrlKey || e.metaKey)){
+    if(t===pickIn && pick.style.display!=="none") return;
+    e.preventDefault(); gridTabCol=null; pickHide();
+    const val=(r,c)=>{ const el=gridAt(g.tb,r,c); return el ? el.value : null; };
+    if(e.shiftKey){
+      if(!gridSel || gridSel.tb!==g.tb) gridSel={tb:g.tb, r0:g.r, c0:g.c, r1:g.r, c1:g.c};
+      [gridSel.r1, gridSel.c1]=cellJump(val, gridSel.r1, gridSel.c1, dir);
+      gridMark(); gridAt(g.tb, gridSel.r1, gridSel.c1)?.scrollIntoView({block:"nearest", inline:"nearest"});
+    }else{ gridSel=null; gridMark(); const [r,c]=cellJump(val, g.r, g.c, dir); gridGo(gridAt(g.tb, r, c)); }
+    return;
+  }
   if(e.key==="Enter"){
     if(t===pickIn && pick.style.display!=="none" && pickAct>=0) return;   // 一覧で選んでいるときは選ぶ方
     e.preventDefault();
@@ -549,11 +573,14 @@ function xselPos(el){
   return {tb, r, c:cell.c0};
 }
 function xselMark(){
-  document.querySelectorAll(".csel").forEach(e=>e.classList.remove("csel"));
+  document.querySelectorAll(".csel,.cact").forEach(e=>e.classList.remove("csel","cact"));
   if(!xsel) return;
   const {tb,r0,c0,r1,c1}=xsel, ra=Math.min(r0,r1), rb=Math.max(r0,r1), ca=Math.min(c0,c1), cb=Math.max(c0,c1);
-  xselMap(tb).forEach((row,r)=>{ if(r>=ra && r<=rb) row.forEach(o=>{ if(o.c1>=ca && o.c0<=cb) o.td.classList.add("csel"); }); });
+  xselMap(tb).forEach((row,r)=>{ if(r>=ra && r<=rb) row.forEach(o=>{ if(o.c1>=ca && o.c0<=cb) o.td.classList.add("csel"); if(r===r0 && o.c0<=c0 && o.c1>=c0) o.td.classList.add("cact"); }); });
 }
+// マス (r, c) の字。表の外は null（colspan のマスは続く列でも同じ字）
+function xselVal(tb, r, c){ const row=xselMap(tb)[r]; if(!row || c<0) return null; const o=row.find(o=>o.c0<=c && o.c1>=c); return o ? xselText(o.td) : null; }
+function xselShow(r, c){ const row=xselMap(xsel.tb)[r]; row?.find(o=>o.c0<=c && o.c1>=c)?.td.scrollIntoView({block:"nearest", inline:"nearest"}); }
 // 表をタブ区切りの文字に（範囲を渡せばその範囲だけ。ボタンの列は空）
 function xselTsv(tb, rg){
   const map=xselMap(tb), ncol=Math.max(...map.map(r=>r.length?r[r.length-1].c1+1:0));
@@ -589,7 +616,24 @@ document.addEventListener("copy", e=>{
   if(!xsel || !document.body.contains(xsel.tb) || document.activeElement?.closest?.("input,textarea,select")) return;
   e.clipboardData.setData("text/plain", xselTsv(xsel.tb, xsel)); e.preventDefault();
 });
-document.addEventListener("keydown", e=>{ if(e.key==="Escape" && xsel){ xsel=null; xselMark(); } });
+// キーで動かす（Excel と同じ）：矢印＝1マス、Ctrl＋矢印＝値の続く端へ、Shift を足すと範囲を広げる。Ctrl+A＝表全部、Esc＝解除
+document.addEventListener("keydown", e=>{
+  if(!xsel) return;
+  if(!document.body.contains(xsel.tb)){ xsel=null; return; }
+  if(document.activeElement?.closest?.("input,textarea,select")) return;
+  if(e.key==="Escape"){ xsel=null; xselMark(); return; }
+  const ctrl=e.ctrlKey || e.metaKey, val=(r,c)=>xselVal(xsel.tb, r, c);
+  if(ctrl && e.key.toLowerCase()==="a"){
+    e.preventDefault(); const map=xselMap(xsel.tb);
+    xsel={tb:xsel.tb, r0:0, c0:0, r1:map.length-1, c1:Math.max(...map.map(r=>r.length?r[r.length-1].c1:0))}; xselMark(); return;
+  }
+  const dir=ARROW[e.key]; if(!dir) return;
+  e.preventDefault();
+  const from = e.shiftKey ? [xsel.r1, xsel.c1] : [xsel.r0, xsel.c0];
+  const to = ctrl ? cellJump(val, from[0], from[1], dir) : (val(from[0]+dir[0], from[1]+dir[1])!==null ? [from[0]+dir[0], from[1]+dir[1]] : from);
+  if(e.shiftKey){ [xsel.r1, xsel.c1]=to; } else xsel={tb:xsel.tb, r0:to[0], c0:to[1], r1:to[0], c1:to[1]};
+  xselMark(); xselShow(to[0], to[1]);
+});
 
 /* ---------- JSON で保存・復元 ---------- */
 // ファイルの中身：{app, ver, saved（保存した日時）, data（画面の値と座標一覧）}
@@ -1134,7 +1178,7 @@ document.getElementById("pts").addEventListener("paste", e=>{
 function stRender(){ $("stOn").value=String(S.set.on); $("stM").value=S.set.m; $("stN").value=S.set.n; stInfo(); }
 function stInfo(){ const h=num($("soOH").value)??0; const k=kGround(h); $("stInfo").innerHTML=`今の倍率（器械点標高 ${f3(h)} m）：現地距離 ＝ 平面距離 × <b>${k.toFixed(7)}</b>（100 m で ${((k-1)*100000).toFixed(1)} mm）`; }
 ["stOn","stM","stN"].forEach(id=>$(id).addEventListener("input",()=>{ S.set={...S.set, on:+$("stOn").value, m:num($("stM").value)??1, n:num($("stN").value)??0}; save(); stInfo(); }));
-function angHelp(){ document.querySelectorAll(".angHelp").forEach(e=>e.textContent = "角度は 度・分・秒 の枠に分けて入れます（Tab で 度→分→秒→次の欄。秒は小数も可）。10進数の度で入れるときは、度の枠に「123.7583」と入れ、分・秒は空のまま。表は Excel のように Enter で下、範囲を選んで Delete・コピー・貼り付けができます。"); }
+function angHelp(){ document.querySelectorAll(".angHelp").forEach(e=>e.textContent = "角度は 度・分・秒 の枠に分けて入れます（Tab で 度→分→秒→次の欄。秒は小数も可）。10進数の度で入れるときは、度の枠に「123.7583」と入れ、分・秒は空のまま。表は Excel のように Enter で下、Ctrl＋矢印で値の続く端へ（Ctrl＋Shift＋矢印でそこまで選ぶ）、範囲を選んで Delete・コピー・貼り付けができます。"); }
 $("stOn").onchange = ()=>{ S.set.on=+$("stOn").value; save(); stInfo(); };
 
 /* ---------- JSON で保存・復元 ---------- */
