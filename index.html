@@ -62,6 +62,8 @@ td.r{background:var(--res);text-align:right;font-weight:bold}
 #pick .it.on{background:var(--hit)}
 #pick .it.cur b::after{content:"（今の値）";font-weight:normal;font-size:12px;color:var(--sub)}
 .rowDel{border:0;background:none;color:var(--sub);font-size:16px;padding:0 0 0 4px;cursor:pointer}
+table[data-xsel] td, table[data-xsel] th{cursor:cell;user-select:none;-webkit-user-select:none}
+table[data-xsel] .csel{background:color-mix(in srgb, var(--acc) 18%, var(--card))!important;outline:1px solid rgba(31,111,209,.45)}
 input.gsel, select.gsel{background:rgba(31,111,209,.16)!important;outline:1px solid rgba(31,111,209,.5)}
 /* 表を横に動かしても # の列は左に残す */
 .scroll table tr > :first-child{position:sticky;left:0;z-index:1;background:var(--card)}
@@ -78,6 +80,7 @@ input.gsel, select.gsel{background:rgba(31,111,209,.16)!important;outline:1px so
 .ang3 input[data-p="d"]{width:66px}.ang3 input[data-p="m"]{width:34px}.ang3 input[data-p="s"]{width:46px}
 .ang3 span{color:var(--sub);font-size:15px;margin-right:3px}
 .warn{color:var(--warn);font-size:13px}
+.wc{color:var(--warn)}   /* 表の中の注意：大きさはそのまま、色だけ */
 .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-variant-numeric:tabular-nums}
 .kv b{text-align:right}
 /* 見出しの行（題名と 保存・復元・ほかの画面へ） */
@@ -135,12 +138,13 @@ label.btn.ghost{color:var(--acc);display:inline-flex;align-items:center}
   </div>
   <div class="card">
     <h2>既知点 2 点ずつの組合せで求めた器械点</h2>
-    <div class="row" style="margin-bottom:6px"><label style="display:flex;align-items:center;gap:6px">並べ方 <select id="fsPairSort" style="width:auto"><option value="pair">組合せの順</option><option value="dd">距離の差が小さい順</option><option value="e">全体の結果に近い順</option></select></label></div>
+    <div class="row" style="margin-bottom:6px"><label style="display:flex;align-items:center;gap:6px">並べ方 <select id="fsPairSort" style="width:auto"><option value="pair">組合せの順</option><option value="dd">距離の差が小さい順</option><option value="e">全体の結果に近い順</option></select></label><button class="btn ghost small" id="fsPairCopy" title="表を全部コピー（スプレッドシートにそのまま貼れます）">表を全部コピー</button></div>
     <div id="fsPairs"></div>
     <p class="note">座標と観測（水平角・距離）が入った既知点から 2 点を選ぶ、考えられる組合せ全部で器械点を出します（「計算に使う」の印に関係なく全部の点で）。<br>
-    距離の差＝2 点の間の距離を、観測（水平角・距離）から出したもの − 座標から出したもの。差の大きい組に入っている点は、座標か観測が怪しい点です（20 mm を超えると色が付きます）。<br>
+    距離の差＝2 点の間の距離を、観測から出したもの（器械点から測った 2 本の距離と、2 点の水平角の差（＝挟む角）で三角形を作って出す）− 座標一覧の座標から出したもの。器械点の座標は使わないので、その 2 点の観測と座標が合っているかの確かめになります。差の大きい組に入っている点は、座標か観測が怪しい点です（20 mm を超えると色が付きます）。<br>
     挟む角＝器械点から見た 2 点の間の角。30° より小さい・150° より大きい組は位置の決まりが弱いので色が付きます。<br>
-    全体の結果とのずれ＝上の「結果」（印のある点全部で求めた器械点）との差。「この2点で計算」を押すと、その 2 点だけに印を付けて結果を出し直します。</p>
+    全体の結果とのずれ＝上の「結果」（印のある点全部で求めた器械点）との差。「この2点で計算」を押すと、その 2 点だけに印を付けて結果を出し直します。<br>
+    表はマウスでなぞる（Shift＋クリックで広げる）と範囲を選べ、Ctrl+C でコピーして Excel・スプレッドシートにそのまま貼れます。「表を全部コピー」は見出しごと全部（iPad はこちら）。</p>
   </div>
 </section>
 
@@ -531,6 +535,62 @@ document.addEventListener("paste", e=>{
   gridSel={tb, r0, c0, r1:r0+data.length-1, c1:c0+Math.max(...data.map(r=>r.length))-1}; gridMark();
 });
 
+/* ---------- 結果の表：Excel のように範囲を選んでコピー ---------- */
+// data-xsel を付けた表は、マウスでなぞる（Shift＋クリックで広げる）と範囲を選べ、Ctrl+C でタブ区切り（スプレッドシートにそのまま貼れる）
+// colspan のある行もあるので、列は「左から何列目か」で数える
+function xselMap(tb){
+  return [...tb.rows].map(tr=>{ let c=0; return [...tr.cells].map(td=>{ const o={td, c0:c, c1:c+td.colSpan-1}; c+=td.colSpan; return o; }); });
+}
+const xselText = td => td.querySelector("button") ? "" : td.textContent.replace(/\s+/g," ").trim();
+let xsel=null, xselDrag=false;   // xsel = {tb, r0, c0, r1, c1}
+function xselPos(el){
+  const td=el.closest?.("td,th"), tb=td?.closest("table[data-xsel]"); if(!tb || el.closest("button,input,select")) return null;
+  const r=[...tb.rows].indexOf(td.parentElement), cell=xselMap(tb)[r].find(o=>o.td===td);
+  return {tb, r, c:cell.c0};
+}
+function xselMark(){
+  document.querySelectorAll(".csel").forEach(e=>e.classList.remove("csel"));
+  if(!xsel) return;
+  const {tb,r0,c0,r1,c1}=xsel, ra=Math.min(r0,r1), rb=Math.max(r0,r1), ca=Math.min(c0,c1), cb=Math.max(c0,c1);
+  xselMap(tb).forEach((row,r)=>{ if(r>=ra && r<=rb) row.forEach(o=>{ if(o.c1>=ca && o.c0<=cb) o.td.classList.add("csel"); }); });
+}
+// 表をタブ区切りの文字に（範囲を渡せばその範囲だけ。ボタンの列は空）
+function xselTsv(tb, rg){
+  const map=xselMap(tb), ncol=Math.max(...map.map(r=>r.length?r[r.length-1].c1+1:0));
+  const ra=rg?Math.min(rg.r0,rg.r1):0, rb=rg?Math.max(rg.r0,rg.r1):map.length-1, ca=rg?Math.min(rg.c0,rg.c1):0, cb=rg?Math.max(rg.c0,rg.c1):ncol-1;
+  const out=[];
+  for(let r=ra;r<=rb;r++){ const line=[]; for(let c=ca;c<=cb;c++){ const o=map[r].find(o=>o.c0<=c && o.c1>=c); line.push(o && (o.c0===c || c===ca) ? xselText(o.td) : ""); /* 横に続くマスは左端の列にだけ字 */ } out.push(line.join("\t")); }
+  // 全部のときは、どの行も空の列（ボタンの列）を右から落とす
+  if(!rg){ const rows=out.map(l=>l.split("\t")); while(rows[0]?.length && rows.every(l=>l[l.length-1]==="")) rows.forEach(l=>l.pop()); return rows.map(l=>l.join("\t")).join("\n"); }
+  return out.join("\n");
+}
+// クリップボードへ（使えれば Clipboard API。file:// などで使えないときは、隠した欄を選んで copy する）
+async function copyText(t){
+  try{ if(navigator.clipboard && isSecureContext){ await navigator.clipboard.writeText(t); return true; } }catch(e){}
+  const ta=document.createElement("textarea"); ta.value=t; ta.setAttribute("readonly",""); ta.style.cssText="position:fixed;left:-9999px;top:0;opacity:0";
+  document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, t.length);
+  let ok=false; try{ ok=document.execCommand("copy"); }catch(e){}
+  ta.remove(); return ok;
+}
+document.addEventListener("mousedown", e=>{
+  const g=xselPos(e.target);
+  if(!g){ if(xsel && !e.target.closest?.("button")){ xsel=null; xselMark(); } return; }
+  e.preventDefault();   // 文字の選択ではなく、マスの範囲を選ぶ
+  if(e.shiftKey && xsel && xsel.tb===g.tb){ xsel.r1=g.r; xsel.c1=g.c; }
+  else xsel={tb:g.tb, r0:g.r, c0:g.c, r1:g.r, c1:g.c};
+  document.activeElement?.blur?.(); getSelection()?.removeAllRanges(); xselDrag=true; xselMark();
+});
+document.addEventListener("mouseover", e=>{
+  if(!xselDrag || !xsel) return; const g=xselPos(e.target); if(!g || g.tb!==xsel.tb) return;
+  if(g.r!==xsel.r1 || g.c!==xsel.c1){ xsel.r1=g.r; xsel.c1=g.c; xselMark(); }
+});
+document.addEventListener("mouseup", ()=>{ xselDrag=false; });
+document.addEventListener("copy", e=>{
+  if(!xsel || !document.body.contains(xsel.tb) || document.activeElement?.closest?.("input,textarea,select")) return;
+  e.clipboardData.setData("text/plain", xselTsv(xsel.tb, xsel)); e.preventDefault();
+});
+document.addEventListener("keydown", e=>{ if(e.key==="Escape" && xsel){ xsel=null; xselMark(); } });
+
 /* ---------- JSON で保存・復元 ---------- */
 // ファイルの中身：{app, ver, saved（保存した日時）, data（画面の値と座標一覧）}
 const isFile = location.protocol==="file:";
@@ -842,14 +902,15 @@ function fsPairs(best){
   const ok=fsPairList.filter(r=>!r.bad), span=(f)=>ok.length ? (Math.max(...ok.map(f))-Math.min(...ok.map(f)))*1000 : 0;
   box.innerHTML = `<div class="note">既知点 ${ws.length} 点から ${fsPairList.length} 通り。器械点の X の幅 ${mm(span(r=>r.x))} mm・Y の幅 ${mm(span(r=>r.y))} mm</div>` +
     (per.length ? `<div class="note">点ごとの距離の差（その点を含む組の中央値）：${per.map(p=>`<span${p.v>20?' class="warn"':""}>${nm(p.w)} ${mm(p.v)} mm</span>`).join("　")}</div>` : "") +
-    `<div class="scroll" style="margin-top:6px"><table><tr><th>#</th><th>既知点の組</th><th>挟む角</th><th>距離の差(mm)</th><th>器械点 X</th><th>器械点 Y</th><th>器械点 標高</th><th>全体の結果とのずれ 水平(mm)</th><th>高さ(mm)</th><th>水平角 0° の方向角</th><th></th></tr>` +
+    `<div class="scroll" style="margin-top:6px"><table id="fsPairTb" data-xsel><tr><th>#</th><th>既知点の組</th><th>挟む角</th><th>距離の差(mm)</th><th>器械点 X</th><th>器械点 Y</th><th>器械点 標高</th><th>全体の結果とのずれ 水平(mm)</th><th>高さ(mm)</th><th>水平角 0° の方向角</th><th></th></tr>` +
     list.map((r,k)=>{ const weak=r.ang<30 || r.ang>150, big=Math.abs(r.dd)>20;
-      return `<tr><td>${k+1}</td><td>${nm(r.A)} ・ ${nm(r.B)}</td><td class="n"${weak?' title="挟む角が小さい（または 180° に近い）ので、位置の決まりが弱い組です"':""}>${weak?`<span class="warn">${dmsOnly(r.ang)}</span>`:dmsOnly(r.ang)}</td>` +
+      return `<tr><td>${k+1}</td><td>${nm(r.A)} ・ ${nm(r.B)}</td><td class="n"${weak?' title="挟む角が小さい（または 180° に近い）ので、位置の決まりが弱い組です"':""}>${weak?`<span class="wc">${dmsOnly(r.ang)}</span>`:dmsOnly(r.ang)}</td>` +
         (r.bad ? `<td colspan="7"><span class="warn">同じ点か同じ観測なので計算できません</span></td>` :
-        `<td class="n">${big?`<span class="warn">${mm(r.dd)}</span>`:mm(r.dd)}</td><td class="r">${f3(r.x)}</td><td class="r">${f3(r.y)}</td><td class="r">${r.h!=null?f3(r.h):""}</td><td class="n">${mm(r.e)}</td><td class="n">${mm(r.eh)}</td><td class="n">${dmsOnly(r.az)}</td>`) +
+        `<td class="n">${big?`<span class="wc">${mm(r.dd)}</span>`:mm(r.dd)}</td><td class="r">${f3(r.x)}</td><td class="r">${f3(r.y)}</td><td class="r">${r.h!=null?f3(r.h):""}</td><td class="n">${mm(r.e)}</td><td class="n">${mm(r.eh)}</td><td class="n">${dmsOnly(r.az)}</td>`) +
         `<td><button class="btn ghost small" data-pair="${fsPairList.indexOf(r)}" title="この2点だけに「計算に使う」の印を付けて計算し直す">この2点で計算</button></td></tr>`; }).join("") +
     `</table></div>`;
 }
+$("fsPairCopy").onclick = async ()=>{ const tb=$("fsPairTb"); if(!tb){ alert("表がまだありません。"); return; } alert(await copyText(xselTsv(tb)) ? "表をコピーしました。Excel・スプレッドシートに貼り付けてください。" : "コピーできませんでした。表をなぞって選び、Ctrl+C でコピーしてください。"); };
 $("fsPairSort").onchange = ()=>{ S.fs.pairSort=$("fsPairSort").value; save(); fsCalc(); };
 $("fsPairs").addEventListener("click", e=>{
   const r=fsPairList[e.target.dataset?.pair]; if(!r) return;
